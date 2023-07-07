@@ -150,7 +150,17 @@ class Model:
             msg = "PyVRP does not yet support multi-depot VRPs."
             raise ValueError(msg)
 
-        depot = Depot(x, y, tw_early=tw_early, tw_late=tw_late)
+        depot = Depot(
+            x,
+            y,
+            tw_early=tw_early,
+            tw_late=tw_late,
+            # We set the release and dispatch times to the early time window
+            # and late time window of the depot, respectively, because they
+            # have the same meaning for the depot.
+            release_time=tw_early,
+            dispatch_time=tw_late,
+        )
         self._depots.append(depot)
         return depot
 

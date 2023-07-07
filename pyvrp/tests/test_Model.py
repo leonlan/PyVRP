@@ -69,7 +69,8 @@ def test_add_client_attributes():
         tw_early=5,
         tw_late=6,
         release_time=7,
-        prize=8,
+        dispatch_time=8,
+        prize=9,
         required=False,
     )
 
@@ -80,7 +81,8 @@ def test_add_client_attributes():
     assert_equal(client.tw_early, 5)
     assert_equal(client.tw_late, 6)
     assert_equal(client.release_time, 7)
-    assert_equal(client.prize, 8)
+    assert_equal(client.dispatch_time, 8)
+    assert_equal(client.prize, 9)
     assert_(not client.required)
 
 
@@ -92,6 +94,10 @@ def test_add_depot_attributes():
     assert_equal(depot.y, 0)
     assert_equal(depot.tw_early, 3)
     assert_equal(depot.tw_late, 5)
+
+    # Release and dispatch times are set to time windows.
+    assert_equal(depot.release_time, 3)
+    assert_equal(depot.dispatch_time, 5)
 
 
 def test_add_edge():

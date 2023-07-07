@@ -145,7 +145,6 @@ def read(
         # No dispatch times data. So the dispatch time component is not
         # relevant, and we set it equal to the planning horizon to ensure it
         # doesn't affect the solution.
-        # TODO: what happens if we set this to zero?
         horizon = time_windows.max()
         dispatch_times = horizon * np.ones(dimension, dtype=int)
 
@@ -169,6 +168,9 @@ def read(
 
     if release_times[0] != 0:
         raise ValueError("Depot release time must be 0")
+
+    if dispatch_times[0] != time_windows[0, 1]:
+        raise ValueError("Depot dispatch time must be equal to end of TW")
 
     if (time_windows[:, 0] > time_windows[:, 1]).any():
         raise ValueError("Time window cannot start after end")
