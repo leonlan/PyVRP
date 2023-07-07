@@ -197,7 +197,7 @@ def test_feasibility_release_times():
 
 
 def test_feasibility_dispatch_times():
-    data = read("data/OkSmallReleaseAndDispatchTimes.txt")
+    data = read("data/OkSmallDispatchTimes.txt")
 
     # This example is similar to the example in release times, but now we have
     # additional time warp due to the dispatch times being earlier than the
@@ -346,7 +346,7 @@ def test_route_release_time():
 
 
 def test_route_dispatch_time():
-    data = read("data/OkSmallReleaseAndDispatchTimes.txt")
+    data = read("data/OkSmallDispatchTimes.txt")
     sol = Solution(data, [[1, 3], [2, 4]])
     routes = sol.get_routes()
 
