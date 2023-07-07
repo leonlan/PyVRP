@@ -21,7 +21,7 @@ class LocalSearch
 
     ProblemData const &data;
 
-    // Neighborhood Restrictions: list of nearby clients for each client (size
+    // Neighborhood restrictions: list of nearby clients for each client (size
     // numClients + 1, but nothing stored for the depot!)
     Neighbours neighbours;
 
