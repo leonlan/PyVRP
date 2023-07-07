@@ -106,6 +106,7 @@ class Model:
         tw_early: int = 0,
         tw_late: int = 0,
         release_time: int = 0,
+        dispatch_time: int = 0,
         prize: int = 0,
         required: bool = True,
     ) -> Client:
@@ -121,6 +122,7 @@ class Model:
             tw_early,
             tw_late,
             release_time,
+            dispatch_time,
             prize,
             required,
         )
@@ -148,7 +150,17 @@ class Model:
             msg = "PyVRP does not yet support multi-depot VRPs."
             raise ValueError(msg)
 
-        depot = Depot(x, y, tw_early=tw_early, tw_late=tw_late)
+        depot = Depot(
+            x,
+            y,
+            tw_early=tw_early,
+            tw_late=tw_late,
+            # We set the release and dispatch times to the early time window
+            # and late time window of the depot, respectively, because they
+            # have the same meaning for the depot.
+            release_time=tw_early,
+            dispatch_time=tw_late,
+        )
         self._depots.append(depot)
         return depot
 

@@ -16,6 +16,7 @@ PYBIND11_MODULE(_ProblemData, m)
                       Value,
                       Value,
                       Value,
+                      Value,
                       bool>(),
              py::arg("x"),
              py::arg("y"),
@@ -24,6 +25,7 @@ PYBIND11_MODULE(_ProblemData, m)
              py::arg("tw_early") = 0,
              py::arg("tw_late") = 0,
              py::arg("release_time") = 0,
+             py::arg("dispatch_time") = 0,
              py::arg("prize") = 0,
              py::arg("required") = true)
         .def_property_readonly(
@@ -51,6 +53,10 @@ PYBIND11_MODULE(_ProblemData, m)
         .def_property_readonly("release_time",
                                [](ProblemData::Client const &client) {
                                    return client.releaseTime.get();
+                               })
+        .def_property_readonly("dispatch_time",
+                               [](ProblemData::Client const &client) {
+                                   return client.dispatchTime.get();
                                })
         .def_property_readonly("prize",
                                [](ProblemData::Client const &client) {

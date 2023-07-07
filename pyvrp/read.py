@@ -139,6 +139,15 @@ def read(
     else:
         release_times = np.zeros(dimension, dtype=int)
 
+    if "dispatch_time" in instance:
+        dispatch_times: np.ndarray = round_func(instance["dispatch_time"])
+    else:
+        # No dispatch times data. So the dispatch time component is not
+        # relevant, and we set it equal to the planning horizon to ensure it
+        # doesn't affect the solution.
+        horizon = time_windows.max()
+        dispatch_times = horizon * np.ones(dimension, dtype=int)
+
     prizes = round_func(instance.get("prize", np.zeros(dimension, dtype=int)))
 
     # Checks
@@ -160,6 +169,9 @@ def read(
     if release_times[0] != 0:
         raise ValueError("Depot release time must be 0")
 
+    if dispatch_times[0] != time_windows[0, 1]:
+        raise ValueError("Depot dispatch time must be equal to end of TW")
+
     if (time_windows[:, 0] > time_windows[:, 1]).any():
         raise ValueError("Time window cannot start after end")
 
@@ -172,6 +184,7 @@ def read(
             time_windows[idx][0],  # TW early
             time_windows[idx][1],  # TW late
             release_times[idx],
+            dispatch_times[idx],
             prizes[idx],
             np.isclose(prizes[idx], 0),  # required only when prize is zero
         )

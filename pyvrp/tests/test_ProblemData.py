@@ -8,15 +8,19 @@ from pyvrp.tests.helpers import read
 
 
 @mark.parametrize(
-    "x,y,demand,service_duration,tw_early,tw_late,release_time,prize",
+    (
+        "x,y,demand,service_duration,tw_early,tw_late,release_time,"
+        "dispatch_time,prize"
+    ),
     [
-        (1, 1, 1, 1, 0, 1, 0, 0),  # normal
-        (1, 1, 1, 0, 0, 1, 0, 0),  # zero duration
-        (1, 1, 0, 1, 0, 1, 0, 0),  # zero demand
-        (1, 1, 1, 1, 0, 0, 0, 0),  # zero length time interval
-        (-1, -1, 1, 1, 0, 1, 0, 0),  # negative coordinates
-        (1, 1, 1, 1, 0, 1, 1, 0),  # positive release time
-        (0, 0, 1, 1, 0, 1, 0, 1),  # positive prize
+        (1, 1, 1, 1, 0, 1, 0, 0, 0),  # normal
+        (1, 1, 1, 0, 0, 1, 0, 0, 0),  # zero duration
+        (1, 1, 0, 1, 0, 1, 0, 0, 0),  # zero demand
+        (1, 1, 1, 1, 0, 0, 0, 0, 0),  # zero length time interval
+        (-1, -1, 1, 1, 0, 1, 0, 0, 0),  # negative coordinates
+        (1, 1, 1, 1, 0, 1, 1, 1, 0),  # positive release time
+        (1, 1, 1, 1, 0, 1, 0, 1, 0),  # release <= dispatch
+        (0, 0, 1, 1, 0, 1, 0, 0, 1),  # positive prize
     ],
 )
 def test_client_constructor_initialises_data_fields_correctly(
@@ -27,10 +31,19 @@ def test_client_constructor_initialises_data_fields_correctly(
     tw_early: int,
     tw_late: int,
     release_time: int,
+    dispatch_time: int,
     prize: int,
 ):
     client = Client(
-        x, y, demand, service_duration, tw_early, tw_late, release_time, prize
+        x,
+        y,
+        demand,
+        service_duration,
+        tw_early,
+        tw_late,
+        release_time,
+        dispatch_time,
+        prize,
     )
     assert_allclose(client.x, x)
     assert_allclose(client.y, y)

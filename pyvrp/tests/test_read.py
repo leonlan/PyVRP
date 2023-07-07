@@ -18,6 +18,7 @@ from pyvrp.tests.helpers import read
         ("data/NonZeroDepotOpenTimeWindow.txt", ValueError),
         ("data/NonZeroDepotReleaseTime.txt", ValueError),
         ("data/NonZeroDepotDemand.txt", ValueError),
+        ("data/DepotDispatchTimeNotTimeWindowLate.txt", ValueError),
         ("data/TimeWindowOpenLargerThanClose.txt", ValueError),
         ("data/EdgeWeightsNoExplicit.txt", ValueError),
         ("data/EdgeWeightsNotFullMatrix.txt", ValueError),
@@ -131,6 +132,7 @@ def test_reading_En22k4_instance():  # instance from CVRPLIB
         assert_equal(data.client(client).tw_early, 0)
         assert_equal(data.client(client).tw_late, 0)
         assert_equal(data.client(client).release_time, 0)
+        assert_equal(data.client(client).dispatch_time, 0)
         assert_equal(data.client(client).prize, 0)
         assert_equal(data.client(client).required, True)
 
@@ -174,6 +176,7 @@ def test_reading_RC208_instance():  # Solomon style instance
     # This is a VRPTW instance, so all other fields should have default values.
     for client in range(data.num_clients + 1):  # incl. depot
         assert_equal(data.client(client).release_time, 0)
+        assert_equal(data.client(client).dispatch_time, data.depot().tw_late)
         assert_equal(data.client(client).prize, 0)
         assert_equal(data.client(client).required, True)
 

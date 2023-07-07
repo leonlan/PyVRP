@@ -31,7 +31,10 @@ public:
         Duration timeWarp_ = 0;  // Total time warp on this route
         Duration wait_ = 0;      // Total waiting duration on this route
         Duration release_ = 0;   // Release time of this route
-        Cost prizes_ = 0;        // Total value of prizes on this route
+        Duration dispatch_
+            = std::numeric_limits<Duration>::max();  // Dispatch time of this
+                                                     // route
+        Cost prizes_ = 0;  // Total value of prizes on this route
 
         std::pair<double, double> centroid_;  // center of the route
         VehicleType vehicleType_ = 0;         // Type of vehicle of this route
@@ -55,6 +58,7 @@ public:
         [[nodiscard]] Duration timeWarp() const;
         [[nodiscard]] Duration waitDuration() const;
         [[nodiscard]] Duration releaseTime() const;
+        [[nodiscard]] Duration dispatchTime() const;
         [[nodiscard]] Cost prizes() const;
 
         [[nodiscard]] std::pair<double, double> const &centroid() const;

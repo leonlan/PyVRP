@@ -7,13 +7,13 @@ from pyvrp._TimeWindowSegment import TimeWindowSegment
 
 @mark.parametrize("existing_time_warp", [2, 5, 10])
 def test_total_time_warp(existing_time_warp):
-    tws1 = TimeWindowSegment(0, 0, 0, existing_time_warp, 0, 0, 0)
+    tws1 = TimeWindowSegment(0, 0, 0, existing_time_warp, 0, 0, 0, 0)
     assert_equal(tws1.total_time_warp(), existing_time_warp)
 
 
 def test_merge_two():
-    tws1 = TimeWindowSegment(0, 0, 5, 0, 0, 5, 0)
-    tws2 = TimeWindowSegment(1, 1, 0, 5, 3, 6, 0)
+    tws1 = TimeWindowSegment(0, 0, 5, 0, 0, 5, 0, 5)
+    tws2 = TimeWindowSegment(1, 1, 0, 5, 3, 6, 0, 5)
 
     mat = Matrix([[1, 4], [1, 2]])
     merged = TimeWindowSegment.merge(mat, tws1, tws2)
@@ -28,15 +28,22 @@ def test_merge_two():
 
     # Now, let's add a bit of release time (3), so that the total time warp
     # should become 8 + 3 = 11.
-    tws2 = TimeWindowSegment(1, 1, 0, 5, 3, 6, 3)
+    tws2 = TimeWindowSegment(1, 1, 0, 5, 3, 6, 3, 5)
     merged = TimeWindowSegment.merge(mat, tws1, tws2)
     assert_equal(merged.total_time_warp(), 11)
 
+    # Using the same release time, but a lower dispatch time of 2, we should
+    # get additional time warp (1) due to mismatching release and dispatch
+    # times, so the total time warp should become 8 + 3 + 1 = 12.
+    tws2 = TimeWindowSegment(1, 1, 0, 5, 3, 6, 3, 2)
+    merged = TimeWindowSegment.merge(mat, tws1, tws2)
+    assert_equal(merged.total_time_warp(), 12)
+
 
 def test_merge_multiple():
-    tws1 = TimeWindowSegment(0, 0, 5, 0, 0, 5, 0)
-    tws2 = TimeWindowSegment(1, 1, 0, 0, 3, 6, 0)
-    tws3 = TimeWindowSegment(2, 2, 0, 0, 2, 3, 2)
+    tws1 = TimeWindowSegment(0, 0, 5, 0, 0, 5, 0, 2)
+    tws2 = TimeWindowSegment(1, 1, 0, 0, 3, 6, 0, 2)
+    tws3 = TimeWindowSegment(2, 2, 0, 0, 2, 3, 2, 1)
 
     mat = Matrix([[1, 4, 1], [1, 2, 4], [1, 1, 1]])
     merged1 = TimeWindowSegment.merge(mat, tws1, tws2)
@@ -47,9 +54,9 @@ def test_merge_multiple():
     assert_equal(merged3.total_time_warp(), merged2.total_time_warp())
 
     # After also merging in tws3, we should have 3 time warp from 0 -> 1, and 7
-    # time warp from 1 -> 2. Since there's also a release time of 2, the total
-    # time warp is 12.
-    assert_equal(merged3.total_time_warp(), 12)
+    # time warp from 1 -> 2. Since there's also a release time of 2, and a
+    # dispatch time of 1, we get a total time warp of 3 + 7 + 2 + 1 = 13.
+    assert_equal(merged3.total_time_warp(), 13)
 
 
 # TODO test two previously merged segments, e.g. merge(merge(1, 2),
