@@ -12,6 +12,7 @@ class TimeWindowSegment:
         tw_early: int,
         tw_late: int,
         release_time: int,
+        dispatch_time: int,
     ) -> None:
         """
         Creates a time window segment.
@@ -32,6 +33,8 @@ class TimeWindowSegment:
             Latest visit moment of the first client.
         release_time
             Earliest moment to start the route segment.
+        dispatch_time
+            Latest moment to start the route segment.
         """
     @overload
     @staticmethod
