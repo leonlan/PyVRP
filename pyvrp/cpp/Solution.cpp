@@ -206,6 +206,13 @@ Solution::Route::Route(ProblemData const &data,
     for (size_t idx = 0; idx != size(); ++idx)
         release_ = std::max(release_, data.client(visits_[idx]).releaseTime);
 
+    for (size_t idx = 0; idx != size(); ++idx)
+        dispatch_ = std::min(dispatch_, data.client(visits_[idx]).dispatchTime);
+
+    // Incur (forward) time warp penalty if dispatch < release, but we start
+    // the route at release time.
+    timeWarp_ += std::max<Duration>(release_ - dispatch_, 0);
+
     Duration time = std::max(release_, data.depot().twEarly);
     int prevClient = 0;
 
@@ -288,6 +295,8 @@ Duration Solution::Route::timeWarp() const { return timeWarp_; }
 Duration Solution::Route::waitDuration() const { return wait_; }
 
 Duration Solution::Route::releaseTime() const { return release_; }
+
+Duration Solution::Route::dispatchTime() const { return dispatch_; }
 
 Cost Solution::Route::prizes() const { return prizes_; }
 

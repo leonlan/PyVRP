@@ -53,6 +53,10 @@ class Route:
         """
         Release time of visits on this route.
         """
+    def dispatch_time(self) -> int:
+        """
+        Dispatch time of visits on this route.
+        """
     def prizes(self) -> int:
         """
         Total prize value collected on this route.

@@ -17,11 +17,12 @@ public:
         Coordinate const y;
         Load const demand;
         Duration const serviceDuration;
-        Duration const twEarly;      // Earliest possible start of service
-        Duration const twLate;       // Latest possible start of service
-        Duration const releaseTime;  // Earliest possible time to leave depot
-        Cost const prize = 0;        // Prize for visiting this client
-        bool const required = true;  // Must client be in solution?
+        Duration const twEarly;       // Earliest possible start of service
+        Duration const twLate;        // Latest possible start of service
+        Duration const releaseTime;   // Earliest possible time to leave depot
+        Duration const dispatchTime;  // Latest possible time to leave depot
+        Cost const prize = 0;         // Prize for visiting this client
+        bool const required = true;   // Must client be in solution?
 
         Client(Coordinate x,
                Coordinate y,
@@ -30,6 +31,7 @@ public:
                Duration twEarly = 0,
                Duration twLate = 0,
                Duration releaseTime = 0,
+               Duration dispatchTime = 0,
                Cost prize = 0,
                bool required = true);
     };

@@ -45,6 +45,10 @@ PYBIND11_MODULE(_Solution, m)
              [](Solution::Route const &route) {
                  return route.releaseTime().get();
              })
+        .def("dispatch_time",
+             [](Solution::Route const &route) {
+                 return route.dispatchTime().get();
+             })
         .def("prizes",
              [](Solution::Route const &route) { return route.prizes().get(); })
         .def("centroid", &Solution::Route::centroid)

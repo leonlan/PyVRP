@@ -29,7 +29,8 @@ PYBIND11_MODULE(_TimeWindowSegment, m)
              py::arg("time_warp"),
              py::arg("tw_early"),
              py::arg("tw_late"),
-             py::arg("release_time"))
+             py::arg("release_time"),
+             py::arg("dispatch_time"))
         .def("total_time_warp",
              [](TWS const &tws) { return tws.totalTimeWarp().get(); })
         .def_static("merge",

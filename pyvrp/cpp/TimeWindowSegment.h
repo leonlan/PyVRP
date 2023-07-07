@@ -8,13 +8,14 @@ class TimeWindowSegment
 {
     using TWS = TimeWindowSegment;
 
-    int idxFirst = 0;          // Index of the first client in the segment
-    int idxLast = 0;           // Index of the last client in the segment
-    Duration duration = 0;     // Total duration, incl. waiting and servicing
-    Duration timeWarp = 0;     // Cumulative time warp
-    Duration twEarly = 0;      // Earliest visit moment of first client
-    Duration twLate = 0;       // Latest visit moment of first client
-    Duration releaseTime = 0;  // Earliest allowed moment to leave the depot
+    int idxFirst = 0;           // Index of the first client in the segment
+    int idxLast = 0;            // Index of the last client in the segment
+    Duration duration = 0;      // Total duration, incl. waiting and servicing
+    Duration timeWarp = 0;      // Cumulative time warp
+    Duration twEarly = 0;       // Earliest visit moment of first client
+    Duration twLate = 0;        // Latest visit moment of first client
+    Duration releaseTime = 0;   // Earliest allowed moment to leave the depot
+    Duration dispatchTime = 0;  // Latest allowed moment to leave the depot
 
     [[nodiscard]] inline TWS merge(Matrix<Duration> const &durationMatrix,
                                    TWS const &other) const;
@@ -29,7 +30,8 @@ public:
 
     /**
      * Total time warp, that is, the time warp along the the segment, and
-     * potential time warp due to too late a release time.
+     * potential time warp due to too late a release time and mismatch in
+     * release and dispatch times.
      */
     [[nodiscard]] inline Duration totalTimeWarp() const;
 
@@ -41,7 +43,8 @@ public:
                              Duration timeWarp,
                              Duration twEarly,
                              Duration twLate,
-                             Duration releaseTime);
+                             Duration releaseTime,
+                             Duration dispatchTime);
 };
 
 TimeWindowSegment TimeWindowSegment::merge(
@@ -62,7 +65,8 @@ TimeWindowSegment TimeWindowSegment::merge(
             timeWarp + other.timeWarp + diffTw,
             std::max(other.twEarly - diff, twEarly) - diffWait,
             std::min(other.twLate - diff, twLate) + diffTw,
-            std::max(releaseTime, other.releaseTime)};
+            std::max(releaseTime, other.releaseTime),
+            std::min(dispatchTime, other.dispatchTime)};
 #endif
 }
 
@@ -87,7 +91,8 @@ TimeWindowSegment TimeWindowSegment::merge(
 
 Duration TimeWindowSegment::totalTimeWarp() const
 {
-    return timeWarp + std::max<Duration>(releaseTime - twLate, 0);
+    return timeWarp + std::max<Duration>(releaseTime - twLate, 0)
+           + std::max<Duration>(releaseTime - dispatchTime, 0);
 }
 
 TimeWindowSegment::TimeWindowSegment(int idxFirst,
@@ -96,14 +101,16 @@ TimeWindowSegment::TimeWindowSegment(int idxFirst,
                                      Duration timeWarp,
                                      Duration twEarly,
                                      Duration twLate,
-                                     Duration releaseTime)
+                                     Duration releaseTime,
+                                     Duration dispatchTime)
     : idxFirst(idxFirst),
       idxLast(idxLast),
       duration(duration),
       timeWarp(timeWarp),
       twEarly(twEarly),
       twLate(twLate),
-      releaseTime(releaseTime)
+      releaseTime(releaseTime),
+      dispatchTime(dispatchTime)
 {
 }
 

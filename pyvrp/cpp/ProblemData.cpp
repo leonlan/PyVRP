@@ -13,6 +13,7 @@ ProblemData::Client::Client(Coordinate x,
                             Duration twEarly,
                             Duration twLate,
                             Duration releaseTime,
+                            Duration dispatchTime,
                             Cost prize,
                             bool required)
     : x(x),
@@ -22,6 +23,7 @@ ProblemData::Client::Client(Coordinate x,
       twEarly(twEarly),
       twLate(twLate),
       releaseTime(releaseTime),
+      dispatchTime(dispatchTime),
       prize(prize),
       required(required)
 {
@@ -33,6 +35,9 @@ ProblemData::Client::Client(Coordinate x,
 
     if (twEarly > twLate)
         throw std::invalid_argument("tw_early must be <= tw_late");
+
+    if (releaseTime > dispatchTime)
+        throw std::invalid_argument("release_time must be <= dispatch_time");
 
     if (prize < 0)
         throw std::invalid_argument("prize must be >= 0");

@@ -106,6 +106,7 @@ class Model:
         tw_early: int = 0,
         tw_late: int = 0,
         release_time: int = 0,
+        dispatch_time: int = 0,
         prize: int = 0,
         required: bool = True,
     ) -> Client:
@@ -121,6 +122,7 @@ class Model:
             tw_early,
             tw_late,
             release_time,
+            dispatch_time,
             prize,
             required,
         )
