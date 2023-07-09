@@ -6,7 +6,8 @@
 #include <cmath>
 #include <ostream>
 
-using TWS = TimeWindowSegment;
+using pyvrp::search::Route;
+using TWS = pyvrp::TimeWindowSegment;
 
 Route::Route(ProblemData const &data, size_t const idx, size_t const vehType)
     : data(data), vehicleType_(vehType), idx(idx)
@@ -129,7 +130,7 @@ void Route::update()
     isTimeWarpFeasible_ = timeWarp_ == 0;
 }
 
-std::ostream &operator<<(std::ostream &out, Route const &route)
+std::ostream &operator<<(std::ostream &out, pyvrp::search::Route const &route)
 {
     out << "Route #" << route.idx + 1 << ":";  // route number
     for (auto *node = n(route.depot); !node->isDepot(); node = n(node))
