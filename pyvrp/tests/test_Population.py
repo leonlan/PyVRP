@@ -12,8 +12,8 @@ from pyvrp import (
     CostEvaluator,
     Population,
     PopulationParams,
+    RandomNumberGenerator,
     Solution,
-    XorShift128,
 )
 from pyvrp.diversity import broken_pairs_distance as bpd
 from pyvrp.exceptions import EmptySolutionWarning
@@ -21,12 +21,14 @@ from pyvrp.tests.helpers import make_random_solutions, read
 
 
 @mark.parametrize(
-    "min_pop_size,"
-    "generation_size,"
-    "nb_elite,"
-    "nb_close,"
-    "lb_diversity,"
-    "ub_diversity",
+    (
+        "min_pop_size",
+        "generation_size",
+        "nb_elite",
+        "nb_close",
+        "lb_diversity",
+        "ub_diversity",
+    ),
     [
         (1, 1, 1, 1, -1, 1.0),  # -1 lb_diversity
         (1, 1, 1, 1, 2, 1.0),  # 2 lb_diversity
@@ -59,12 +61,14 @@ def test_params_constructor_throws_when_arguments_invalid(
 
 
 @mark.parametrize(
-    "min_pop_size,"
-    "generation_size,"
-    "nb_elite,"
-    "nb_close,"
-    "lb_diversity,"
-    "ub_diversity",
+    (
+        "min_pop_size",
+        "generation_size",
+        "nb_elite",
+        "nb_close",
+        "lb_diversity",
+        "ub_diversity",
+    ),
     [
         (1, 1, 1, 1, 0.0, 0.5),  # >0 min_pop_size
         (1, 0, 1, 1, 0.0, 0.5),  # 0 generation_size
@@ -106,7 +110,7 @@ def test_params_constructor_does_not_raise_when_arguments_valid(
 def test_add_triggers_purge():
     data = read("data/OkSmall.txt")
     cost_evaluator = CostEvaluator(20, 6)
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     params = PopulationParams()
     pop = Population(bpd, params=params)
@@ -150,7 +154,7 @@ def test_add_triggers_purge():
 def test_select_returns_same_parents_if_no_other_option():
     data = read("data/OkSmall.txt")
     cost_evaluator = CostEvaluator(20, 6)
-    rng = XorShift128(seed=2_147_483_647)
+    rng = RandomNumberGenerator(seed=2_147_483_647)
 
     params = PopulationParams(min_pop_size=0)
     pop = Population(bpd, params=params)
@@ -190,7 +194,7 @@ def test_select_returns_same_parents_if_no_other_option():
 def test_population_is_empty_with_zero_min_pop_size_and_generation_size():
     data = read("data/OkSmall.txt")
     cost_evaluator = CostEvaluator(20, 6)
-    rng = XorShift128(seed=12)
+    rng = RandomNumberGenerator(seed=12)
 
     params = PopulationParams(min_pop_size=0, generation_size=0)
     pop = Population(bpd, params=params)
@@ -210,7 +214,7 @@ def test_elite_solutions_are_not_purged(nb_elite: int):
     data = read("data/RC208.txt", "solomon", "dimacs")
     cost_evaluator = CostEvaluator(20, 6)
     params = PopulationParams(nb_elite=nb_elite)
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     pop = Population(bpd, params=params)
 
@@ -245,7 +249,7 @@ def test_elite_solutions_are_not_purged(nb_elite: int):
 def test_tournament_ranks_by_fitness(k: int):
     data = read("data/RC208.txt", "solomon", "dimacs")
     cost_evaluator = CostEvaluator(20, 6)
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
     pop = Population(bpd)
 
     for sol in make_random_solutions(50, data, rng):
@@ -256,10 +260,10 @@ def test_tournament_ranks_by_fitness(k: int):
 
     # Since this test requires the fitness values of the solutions, we have
     # to access the underlying infeasible subpopulation directly.
-    infeas_pop = pop._infeas
+    infeas_pop = pop._infeas  # noqa: SLF001
     infeas_pop.update_fitness(cost_evaluator)
 
-    items = [item for item in pop._infeas]
+    items = [item for item in infeas_pop]
     by_fitness = sorted(items, key=lambda item: item.fitness)
     sol2idx = {item.solution: idx for idx, item in enumerate(by_fitness)}
     infeas_count = np.zeros(len(infeas_pop))
@@ -290,7 +294,7 @@ def test_tournament_ranks_by_fitness(k: int):
 def test_tournament_raises_for_invalid_k(k: int):
     data = read("data/RC208.txt", "solomon", "dimacs")
     cost_evaluator = CostEvaluator(20, 6)
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
     pop = Population(bpd)
 
     for sol in make_random_solutions(5, data, rng):
@@ -304,7 +308,7 @@ def test_purge_removes_duplicates():
     data = read("data/RC208.txt", "solomon", "dimacs")
     cost_evaluator = CostEvaluator(20, 6)
     params = PopulationParams(min_pop_size=20, generation_size=5)
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     pop = Population(bpd, params=params)
 
@@ -343,7 +347,7 @@ def test_purge_removes_duplicates():
 def test_clear():
     data = read("data/RC208.txt", "solomon", "dimacs")
     cost_evaluator = CostEvaluator(20, 6)
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
     pop = Population(bpd)
 
     for sol in make_random_solutions(10, data, rng):

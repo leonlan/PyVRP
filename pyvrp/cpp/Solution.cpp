@@ -1,5 +1,6 @@
 #include "Solution.h"
 #include "ProblemData.h"
+#include "TimeWindowSegment.h"
 
 #include <fstream>
 #include <numeric>
@@ -45,7 +46,12 @@ std::vector<std::pair<Client, Client>> const &Solution::getNeighbours() const
     return neighbours;
 }
 
-bool Solution::isFeasible() const { return !hasExcessLoad() && !hasTimeWarp(); }
+bool Solution::isFeasible() const
+{
+    return !hasExcessLoad() && !hasTimeWarp() && isComplete();
+}
+
+bool Solution::isComplete() const { return numMissingClients_ == 0; }
 
 bool Solution::hasExcessLoad() const { return excessLoad_ > 0; }
 
@@ -101,7 +107,7 @@ bool Solution::operator==(Solution const &other) const
     return true;
 }
 
-Solution::Solution(ProblemData const &data, XorShift128 &rng)
+Solution::Solution(ProblemData const &data, RandomNumberGenerator &rng)
     : neighbours(data.numClients() + 1, {0, 0})
 {
     // Shuffle clients (to create random routes)
@@ -160,14 +166,24 @@ Solution::Solution(ProblemData const &data, std::vector<Route> const &routes)
     for (auto const &route : routes)
     {
         if (route.empty())
-        {
-            auto const msg = "Solution should not contain empty routes.";
-            throw std::runtime_error(msg);
-        }
+            throw std::runtime_error("Solution should not have empty routes.");
 
         usedVehicles[route.vehicleType()]++;
         for (auto const client : route)
             visits[client]++;
+    }
+
+    for (size_t client = 1; client <= data.numClients(); ++client)
+    {
+        if (data.client(client).required && visits[client] == 0)
+            numMissingClients_ += 1;
+
+        if (visits[client] > 1)
+        {
+            std::ostringstream msg;
+            msg << "Client " << client << " is visited more than once.";
+            throw std::runtime_error(msg.str());
+        }
     }
 
     for (size_t vehType = 0; vehType != data.numVehicleTypes(); vehType++)
@@ -180,54 +196,33 @@ Solution::Solution(ProblemData const &data, std::vector<Route> const &routes)
             throw std::runtime_error(msg.str());
         }
 
-    for (size_t client = 1; client <= data.numClients(); ++client)
-    {
-        if (data.client(client).required && visits[client] == 0)
-        {
-            std::ostringstream msg;
-            msg << "Client " << client << " is required but not present.";
-            throw std::runtime_error(msg.str());
-        }
-
-        if (visits[client] > 1)
-        {
-            std::ostringstream msg;
-            msg << "Client " << client << " is visited more than once.";
-            throw std::runtime_error(msg.str());
-        }
-    }
-
     makeNeighbours();
     evaluate(data);
 }
 
 Solution::Route::Route(ProblemData const &data,
-                       Visits const visits,
+                       Visits visits,
                        size_t const vehicleType)
     : visits_(std::move(visits)), centroid_({0, 0}), vehicleType_(vehicleType)
 {
     if (visits_.empty())
         return;
 
-    for (size_t idx = 0; idx != size(); ++idx)
-        release_ = std::max(release_, data.client(visits_[idx]).releaseTime);
+    auto const &vehType = data.vehicleType(vehicleType);
+    auto const &depot = data.client(vehType.depot);
+    auto const &durMat = data.durationMatrix();
 
-    for (size_t idx = 0; idx != size(); ++idx)
-        dispatch_ = std::min(dispatch_, data.client(visits_[idx]).dispatchTime);
-
-    // Incur (forward) time warp penalty if dispatch < release, but we start
-    // the route at release time.
-    timeWarp_ += std::max<Duration>(release_ - dispatch_, 0);
-
-    Duration time = std::max(release_, data.depot().twEarly);
-    int prevClient = 0;
+    TimeWindowSegment depotTws(vehType.depot, depot);
+    auto tws = depotTws;
+    size_t prevClient = vehType.depot;
 
     for (size_t idx = 0; idx != size(); ++idx)
     {
-        auto const &clientData = data.client(visits_[idx]);
+        auto const client = visits_[idx];
+        auto const &clientData = data.client(client);
 
-        distance_ += data.dist(prevClient, visits_[idx]);
-        duration_ += data.duration(prevClient, visits_[idx]);
+        distance_ += data.dist(prevClient, client);
+        travel_ += data.duration(prevClient, client);
         demand_ += clientData.demand;
         service_ += clientData.serviceDuration;
         prizes_ += clientData.prize;
@@ -235,33 +230,25 @@ Solution::Route::Route(ProblemData const &data,
         centroid_.first += static_cast<double>(clientData.x) / size();
         centroid_.second += static_cast<double>(clientData.y) / size();
 
-        time += data.client(prevClient).serviceDuration
-                + data.duration(prevClient, visits_[idx]);
+        auto const clientTws = TimeWindowSegment(client, clientData);
+        tws = TimeWindowSegment::merge(durMat, tws, clientTws);
 
-        if (time < clientData.twEarly)  // add wait duration
-        {
-            wait_ += clientData.twEarly - time;
-            time = clientData.twEarly;
-        }
-
-        if (time > clientData.twLate)  // add time warp
-        {
-            timeWarp_ += time - clientData.twLate;
-            time = clientData.twLate;
-        }
-
-        prevClient = visits_[idx];
+        prevClient = client;
     }
 
     Client const last = visits_.back();  // last client has depot as successor
-    distance_ += data.dist(last, 0);
-    duration_ += data.duration(last, 0);
+    distance_ += data.dist(last, vehType.depot);
+    travel_ += data.duration(last, vehType.depot);
 
-    time += data.client(last).serviceDuration + data.duration(last, 0);
-    timeWarp_ += std::max<Duration>(time - data.depot().twLate, 0);
+    excessLoad_ = std::max<Load>(demand_ - vehType.capacity, 0);
 
-    auto const capacity = data.vehicleType(vehicleType).capacity;
-    excessLoad_ = capacity < demand_ ? demand_ - capacity : 0;
+    tws = TimeWindowSegment::merge(durMat, tws, depotTws);
+    duration_ = tws.duration();
+    startTime_ = tws.twEarly();
+    slack_ = tws.twLate() - tws.twEarly();
+    timeWarp_ = tws.totalTimeWarp();
+    release_ = tws.releaseTime();
+    dispatch_ = tws.dispatchTime();
 }
 
 bool Solution::Route::empty() const { return visits_.empty(); }
@@ -277,13 +264,6 @@ Visits::const_iterator Solution::Route::begin() const
 
 Visits::const_iterator Solution::Route::end() const { return visits_.cend(); }
 
-Visits::const_iterator Solution::Route::cbegin() const
-{
-    return visits_.cbegin();
-}
-
-Visits::const_iterator Solution::Route::cend() const { return visits_.cend(); }
-
 Visits const &Solution::Route::visits() const { return visits_; }
 
 Distance Solution::Route::distance() const { return distance_; }
@@ -298,7 +278,21 @@ Duration Solution::Route::serviceDuration() const { return service_; }
 
 Duration Solution::Route::timeWarp() const { return timeWarp_; }
 
-Duration Solution::Route::waitDuration() const { return wait_; }
+Duration Solution::Route::waitDuration() const
+{
+    return duration_ - travel_ - service_;
+}
+
+Duration Solution::Route::travelDuration() const { return travel_; }
+
+Duration Solution::Route::startTime() const { return startTime_; }
+
+Duration Solution::Route::endTime() const
+{
+    return startTime_ + duration_ - timeWarp_;
+}
+
+Duration Solution::Route::slack() const { return slack_; }
 
 Duration Solution::Route::releaseTime() const { return release_; }
 

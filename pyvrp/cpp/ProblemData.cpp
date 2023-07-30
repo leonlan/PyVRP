@@ -44,8 +44,6 @@ ProblemData::Client::Client(Coordinate x,
         throw std::invalid_argument("prize must be >= 0");
 }
 
-ProblemData::Client const &ProblemData::depot() const { return client(0); }
-
 std::pair<double, double> const &ProblemData::centroid() const
 {
     return centroid_;
@@ -63,8 +61,8 @@ size_t ProblemData::numVehicles() const { return numVehicles_; }
 
 ProblemData::ProblemData(std::vector<Client> const &clients,
                          std::vector<VehicleType> const &vehicleTypes,
-                         Matrix<Distance> const distMat,
-                         Matrix<Duration> const durMat)
+                         Matrix<Distance> distMat,
+                         Matrix<Duration> durMat)
     : centroid_({0, 0}),
       dist_(std::move(distMat)),
       dur_(std::move(durMat)),
@@ -79,6 +77,21 @@ ProblemData::ProblemData(std::vector<Client> const &clients,
                                        return sum + type.numAvailable;
                                    }))
 {
+
+    if (clients.size() == 0)  // at least one client (the depot) is required
+        throw std::invalid_argument("Clients must not be empty.");
+
+    auto const &depot = clients[0];
+
+    if (depot.demand != 0)
+        throw std::invalid_argument("Depot demand must be 0.");
+
+    if (depot.serviceDuration != 0)
+        throw std::invalid_argument("Depot service duration must be 0.");
+
+    if (depot.releaseTime != 0)
+        throw std::invalid_argument("Depot release time must be 0.");
+
     for (size_t idx = 1; idx <= numClients(); ++idx)
     {
         centroid_.first += static_cast<double>(clients[idx].x) / numClients();

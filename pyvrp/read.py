@@ -71,6 +71,14 @@ def read(
               decimal;
             * ``'none'`` does no rounding. This is the default.
 
+    Raises
+    ------
+    TypeError
+        When ``round_func`` does not name a rounding function, or is not
+        callable.
+    ValueError
+        When the data file does not provide information on the problem size.
+
     Returns
     -------
     ProblemData
@@ -80,7 +88,7 @@ def read(
         round_func = ROUND_FUNCS[key]
 
     if not callable(round_func):
-        raise ValueError(
+        raise TypeError(
             f"round_func = {round_func} is not understood. Can be a function,"
             f" or one of {ROUND_FUNCS.keys()}."
         )
@@ -156,24 +164,6 @@ def read(
             "Source file should contain single depot with index 1 "
             + "(depot index should be 0 after subtracting offset 1)"
         )
-
-    if demands[0] != 0:
-        raise ValueError("Demand of depot must be 0")
-
-    if time_windows[0, 0] != 0:
-        raise ValueError("Depot start of time window must be 0")
-
-    if service_times[0] != 0:
-        raise ValueError("Depot service duration must be 0")
-
-    if release_times[0] != 0:
-        raise ValueError("Depot release time must be 0")
-
-    if dispatch_times[0] != time_windows[0, 1]:
-        raise ValueError("Depot dispatch time must be equal to end of TW")
-
-    if (time_windows[:, 0] > time_windows[:, 1]).any():
-        raise ValueError("Time window cannot start after end")
 
     clients = [
         Client(
