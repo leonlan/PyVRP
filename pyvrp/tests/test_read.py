@@ -6,7 +6,7 @@ from pyvrp.tests.helpers import read
 
 
 @mark.parametrize(
-    "where, exception",
+    ("where", "exception"),
     [
         ("data/UnknownEdgeWeightFmt.txt", ValueError),
         ("data/UnknownEdgeWeightType.txt", ValueError),
@@ -14,11 +14,6 @@ from pyvrp.tests.helpers import read
         ("data/FileWithUnknownSection.txt", ValueError),
         ("data/DepotNotOne.txt", ValueError),
         ("data/MoreThanOneDepot.txt", ValueError),
-        ("data/NonZeroDepotServiceDuration.txt", ValueError),
-        ("data/NonZeroDepotOpenTimeWindow.txt", ValueError),
-        ("data/NonZeroDepotReleaseTime.txt", ValueError),
-        ("data/NonZeroDepotDemand.txt", ValueError),
-        ("data/DepotDispatchTimeNotTimeWindowLate.txt", ValueError),
         ("data/TimeWindowOpenLargerThanClose.txt", ValueError),
         ("data/EdgeWeightsNoExplicit.txt", ValueError),
         ("data/EdgeWeightsNotFullMatrix.txt", ValueError),
@@ -30,7 +25,7 @@ def test_raises_invalid_file(where: str, exception: Exception):
 
 
 def test_raises_unknown_round_func():
-    with assert_raises(ValueError):
+    with assert_raises(TypeError):
         # Unknown round_func, so should raise.
         read("data/OkSmall.txt", round_func="asdbsadfas")
 
@@ -109,8 +104,8 @@ def test_reading_En22k4_instance():  # instance from CVRPLIB
     assert_equal(data.vehicle_type(0).capacity, 6_000)
 
     # Coordinates are scaled by 10 to align with 1 decimal distance precision
-    assert_equal(data.depot().x, 1450)  # depot [x, y] location
-    assert_equal(data.depot().y, 2150)
+    assert_equal(data.client(0).x, 1450)  # depot [x, y] location
+    assert_equal(data.client(0).y, 2150)
 
     assert_equal(data.client(1).x, 1510)  # first customer [x, y] location
     assert_equal(data.client(1).y, 2640)
@@ -132,7 +127,6 @@ def test_reading_En22k4_instance():  # instance from CVRPLIB
         assert_equal(data.client(client).tw_early, 0)
         assert_equal(data.client(client).tw_late, 0)
         assert_equal(data.client(client).release_time, 0)
-        assert_equal(data.client(client).dispatch_time, 0)
         assert_equal(data.client(client).prize, 0)
         assert_equal(data.client(client).required, True)
 
@@ -146,10 +140,10 @@ def test_reading_RC208_instance():  # Solomon style instance
     assert_equal(data.vehicle_type(0).capacity, 1_000)
 
     # Coordinates and times are scaled by 10 for 1 decimal distance precision
-    assert_equal(data.depot().x, 400)  # depot [x, y] location
-    assert_equal(data.depot().y, 500)
-    assert_equal(data.depot().tw_early, 0)
-    assert_equal(data.depot().tw_late, 9600)
+    assert_equal(data.client(0).x, 400)  # depot [x, y] location
+    assert_equal(data.client(0).y, 500)
+    assert_equal(data.client(0).tw_early, 0)
+    assert_equal(data.client(0).tw_late, 9600)
 
     # Note: everything except demand is scaled by 10
     assert_equal(data.client(1).x, 250)  # first customer [x, y] location
@@ -176,7 +170,6 @@ def test_reading_RC208_instance():  # Solomon style instance
     # This is a VRPTW instance, so all other fields should have default values.
     for client in range(data.num_clients + 1):  # incl. depot
         assert_equal(data.client(client).release_time, 0)
-        assert_equal(data.client(client).dispatch_time, data.depot().tw_late)
         assert_equal(data.client(client).prize, 0)
         assert_equal(data.client(client).required, True)
 

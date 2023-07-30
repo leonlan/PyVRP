@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from typing import Callable, Generator, Tuple
+from typing import TYPE_CHECKING, Callable, Generator, Tuple
 from warnings import warn
 
-from ._pyvrp import (
-    CostEvaluator,
-    PopulationParams,
-    Solution,
-    SubPopulation,
-    XorShift128,
-)
+from ._pyvrp import PopulationParams, SubPopulation
 from .exceptions import EmptySolutionWarning
+
+if TYPE_CHECKING:
+    from ._pyvrp import CostEvaluator, RandomNumberGenerator, Solution
 
 
 class Population:
@@ -139,7 +136,7 @@ class Population:
 
     def select(
         self,
-        rng: XorShift128,
+        rng: RandomNumberGenerator,
         cost_evaluator: CostEvaluator,
         k: int = 2,
     ) -> Tuple[Solution, Solution]:
@@ -180,7 +177,10 @@ class Population:
         return first, second
 
     def get_tournament(
-        self, rng: XorShift128, cost_evaluator: CostEvaluator, k: int = 2
+        self,
+        rng: RandomNumberGenerator,
+        cost_evaluator: CostEvaluator,
+        k: int = 2,
     ) -> Solution:
         """
         Selects a solution from this population by k-ary tournament, based
@@ -204,7 +204,7 @@ class Population:
         self._update_fitness(cost_evaluator)
         return self._get_tournament(rng, k)
 
-    def _get_tournament(self, rng: XorShift128, k: int) -> Solution:
+    def _get_tournament(self, rng: RandomNumberGenerator, k: int) -> Solution:
         if k <= 0:
             raise ValueError(f"Expected k > 0; got k = {k}.")
 

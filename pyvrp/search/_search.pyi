@@ -1,6 +1,11 @@
 from typing import List
 
-from pyvrp._pyvrp import CostEvaluator, ProblemData, Solution, XorShift128
+from pyvrp._pyvrp import (
+    CostEvaluator,
+    ProblemData,
+    RandomNumberGenerator,
+    Solution,
+)
 
 class NodeOperator:
     def __init__(self, *args, **kwargs) -> None: ...
@@ -45,12 +50,12 @@ class LocalSearch:
     def add_route_operator(self, op: RouteOperator) -> None: ...
     def set_neighbours(self, neighbours: List[List[int]]) -> None: ...
     def get_neighbours(self) -> List[List[int]]: ...
-    def shuffle(self, rng: XorShift128) -> None: ...
+    def shuffle(self, rng: RandomNumberGenerator) -> None: ...
     def intensify(
         self,
         solution: Solution,
         cost_evaluator: CostEvaluator,
-        overlap_tolerance_degrees: int = 0,
+        overlap_tolerance: float = 0.05,
     ) -> Solution: ...
     def search(
         self, solution: Solution, cost_evaluator: CostEvaluator

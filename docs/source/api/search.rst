@@ -5,8 +5,16 @@
 Search
 ======
 
-The :mod:`pyvrp.search` module contains classes and methods responsible for improving a newly created offspring solution.
+The :mod:`pyvrp.search` module contains classes and search methods responsible for improving a newly created offspring solution.
 This happens just after :mod:`pyvrp.crossover` is performed by the :class:`~pyvrp.GeneticAlgorithm.GeneticAlgorithm`. 
+PyVRP currently provides a :class:`LocalSearch` method.
+
+All search methods implement the :class:`SearchMethod` protocol.
+
+.. automodule:: pyvrp.search.SearchMethod
+
+   .. autoclass:: SearchMethod
+      :members:
 
 .. automodule:: pyvrp.search.LocalSearch
 
@@ -16,10 +24,12 @@ This happens just after :mod:`pyvrp.crossover` is performed by the :class:`~pyvr
 .. automodule:: pyvrp.search.neighbourhood
    :members:
 
+
 Node operators
 --------------
 
 Instances of these operators can be added to the :class:`~pyvrp.search.LocalSearch.LocalSearch` object via the :meth:`~pyvrp.search.LocalSearch.LocalSearch.add_node_operator` method.
+Each node operator inherits from :class:`~pyvrp.search._search.NodeOperator`.
 As a convenience, the :mod:`pyvrp.search` module makes all these operators available as ``NODE_OPERATORS``:
 
 .. code-block:: python
@@ -29,43 +39,48 @@ As a convenience, the :mod:`pyvrp.search` module makes all these operators avail
 
 .. automodule:: pyvrp.search._search
 
-   .. autoapiclass:: Exchange10
+   .. autoclass:: NodeOperator
       :members:
 
-   .. autoapiclass:: Exchange20
+   .. autoclass:: Exchange10
       :members:
 
-   .. autoapiclass:: Exchange30
+   .. autoclass:: Exchange20
+      :members:
+
+   .. autoclass:: Exchange30
       :members:
    
-   .. autoapiclass:: Exchange11
+   .. autoclass:: Exchange11
       :members:
 
-   .. autoapiclass:: Exchange21
+   .. autoclass:: Exchange21
       :members:
 
-   .. autoapiclass:: Exchange31
+   .. autoclass:: Exchange31
       :members:
    
-   .. autoapiclass:: Exchange22
+   .. autoclass:: Exchange22
       :members:
 
-   .. autoapiclass:: Exchange32
+   .. autoclass:: Exchange32
       :members:
    
-   .. autoapiclass:: Exchange33
+   .. autoclass:: Exchange33
       :members:
 
-   .. autoapiclass:: MoveTwoClientsReversed
+   .. autoclass:: MoveTwoClientsReversed
       :members:
 
-   .. autoapiclass:: TwoOpt
+   .. autoclass:: TwoOpt
       :members:
+
 
 Route operators
 ---------------
 
 Instances of these operators can be added to the :class:`~pyvrp.search.LocalSearch.LocalSearch` object via the :meth:`~pyvrp.search.LocalSearch.LocalSearch.add_route_operator` method.
+Each route operator inherits from :class:`~pyvrp.search._search.RouteOperator`.
 As a convenience, the :mod:`pyvrp.search` module makes all these operators available as ``ROUTE_OPERATORS``:
 
 .. code-block:: python
@@ -76,8 +91,11 @@ As a convenience, the :mod:`pyvrp.search` module makes all these operators avail
 .. automodule:: pyvrp.search._search
    :noindex:
 
-   .. autoapiclass:: RelocateStar
+   .. autoclass:: RouteOperator
       :members:
 
-   .. autoapiclass:: SwapStar
+   .. autoclass:: RelocateStar
+      :members:
+
+   .. autoclass:: SwapStar
       :members:

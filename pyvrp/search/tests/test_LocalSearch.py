@@ -1,36 +1,41 @@
 from numpy.testing import assert_, assert_equal, assert_raises
 from pytest import mark
 
-from pyvrp import CostEvaluator, Route, Solution, VehicleType, XorShift128
+from pyvrp import (
+    CostEvaluator,
+    RandomNumberGenerator,
+    Route,
+    Solution,
+    VehicleType,
+)
 from pyvrp.search import (
     Exchange10,
     Exchange11,
     LocalSearch,
     NeighbourhoodParams,
+    RelocateStar,
     compute_neighbours,
 )
 from pyvrp.search._search import LocalSearch as cpp_LocalSearch
 from pyvrp.tests.helpers import make_heterogeneous, read
 
 
-def test_local_search_raises_when_there_are_no_operators():
+def test_local_search_returns_same_solution_when_there_are_no_operators():
     data = read("data/OkSmall.txt")
     cost_evaluator = CostEvaluator(20, 6)
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     ls = LocalSearch(data, rng, compute_neighbours(data))
     sol = Solution.make_random(data, rng)
 
-    with assert_raises(RuntimeError):
-        ls.search(sol, cost_evaluator)
-
-    with assert_raises(RuntimeError):
-        ls.intensify(sol, cost_evaluator)
+    # No operators have been added, so these calls should be no-ops.
+    assert_equal(ls.search(sol, cost_evaluator), sol)
+    assert_equal(ls.intensify(sol, cost_evaluator), sol)
 
 
 def test_local_search_raises_when_neighbourhood_structure_is_empty():
     data = read("data/OkSmall.txt")
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     # Is completely empty neighbourhood, so there's nothing to do for the
     # local search in this case.
@@ -48,7 +53,7 @@ def test_local_search_raises_when_neighbourhood_structure_is_empty():
 @mark.parametrize("size", [1, 2, 3, 4, 6, 7])  # num_clients + 1 == 5
 def test_local_search_raises_when_neighbourhood_dimensions_do_not_match(size):
     data = read("data/OkSmall.txt")
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     # Each of the given sizes is either smaller than or bigger than desired.
     neighbours = [[] for _ in range(size)]
@@ -64,7 +69,7 @@ def test_local_search_raises_when_neighbourhood_dimensions_do_not_match(size):
 
 def test_local_search_raises_when_neighbourhood_contains_self_or_depot():
     data = read("data/OkSmall.txt")
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     neighbours = [[client] for client in range(data.num_clients + 1)]
 
@@ -73,11 +78,13 @@ def test_local_search_raises_when_neighbourhood_contains_self_or_depot():
 
 
 @mark.parametrize(
-    "weight_wait_time,"
-    "weight_time_warp,"
-    "nb_granular,"
-    "symmetric_proximity,"
-    "symmetric_neighbours",
+    (
+        "weight_wait_time",
+        "weight_time_warp",
+        "nb_granular",
+        "symmetric_proximity",
+        "symmetric_neighbours",
+    ),
     [
         (20, 20, 10, True, False),
         (20, 20, 10, True, True),
@@ -94,7 +101,7 @@ def test_local_search_set_get_neighbours(
     symmetric_neighbours: bool,
 ):
     data = read("data/RC208.txt", "solomon", round_func="trunc")
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     params = NeighbourhoodParams(nb_granular=1)
     prev_neighbours = compute_neighbours(data, params)
@@ -134,7 +141,7 @@ def test_reoptimize_changed_objective_timewarp_OkSmall():
     because the current cost doesn't count the current time warp.
     """
     data = read("data/OkSmall.txt")
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     sol = Solution(data, [[1, 2, 3, 4]])
 
@@ -167,7 +174,7 @@ def test_prize_collecting():
     Tests that local search works on a small prize-collecting instance.
     """
     data = read("data/p06-2-50.vrp", round_func="dimacs")
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
     cost_evaluator = CostEvaluator(1, 1)
 
     sol = Solution.make_random(data, rng)
@@ -190,7 +197,7 @@ def test_prize_collecting():
 
 def test_cpp_shuffle_results_in_different_solution():
     data = read("data/RC208.txt", "solomon", round_func="trunc")
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     ls = cpp_LocalSearch(data, compute_neighbours(data))
     ls.add_node_operator(Exchange10(data))
@@ -215,7 +222,7 @@ def test_cpp_shuffle_results_in_different_solution():
 def test_route_vehicle_types_are_preserved_for_locally_optimal_solutions():
     # This test tests that we will preserve vehicle types
     data = read("data/RC208.txt", "solomon", round_func="trunc")
-    rng = XorShift128(seed=42)
+    rng = RandomNumberGenerator(seed=42)
 
     neighbours = compute_neighbours(data)
     ls = cpp_LocalSearch(data, neighbours)
@@ -245,3 +252,80 @@ def test_route_vehicle_types_are_preserved_for_locally_optimal_solutions():
     # the solution, especially not change the vehicle types
     further_improved = ls.search(improved, cost_evaluator)
     assert_equal(further_improved, improved)
+
+
+def test_bugfix_vehicle_type_offsets():
+    """
+    See https://github.com/PyVRP/PyVRP/pull/292 for details. This exercises a
+    fix to a bug that would crash local search due to an incorrect internal
+    mapping of vehicle types to route indices if the next vehicle type had
+    more vehicles than the previous.
+    """
+    data = read("data/OkSmall.txt")
+    data = make_heterogeneous(data, [VehicleType(10, 1), VehicleType(10, 2)])
+
+    ls = cpp_LocalSearch(data, compute_neighbours(data))
+    ls.add_node_operator(Exchange10(data))
+
+    cost_evaluator = CostEvaluator(1, 1)
+
+    current = Solution(data, [Route(data, [1, 3], 1), Route(data, [2, 4], 1)])
+    current_cost = cost_evaluator.penalised_cost(current)
+
+    improved = ls.search(current, cost_evaluator)
+    improved_cost = cost_evaluator.penalised_cost(improved)
+
+    assert_(improved_cost <= current_cost)
+
+
+def test_intensify_overlap_tolerance():
+    data = read("data/RC208.txt", "solomon", round_func="trunc")
+    rng = RandomNumberGenerator(seed=42)
+
+    neighbours = compute_neighbours(data)
+    ls = LocalSearch(data, rng, neighbours)
+    ls.add_route_operator(RelocateStar(data))
+
+    cost_eval = CostEvaluator(1, 1)
+    sol = Solution.make_random(data, rng)
+
+    # Overlap tolerance is zero, so no routes should have overlap and thus
+    # no intensification should take place.
+    unchanged = ls.intensify(sol, cost_eval, overlap_tolerance=0)
+    assert_equal(unchanged, sol)
+
+    # But with full overlap tolerance, all routes should be checked. That
+    # should lead to an improvement over the random solution.
+    better = ls.intensify(sol, cost_eval, overlap_tolerance=1)
+    assert_(better != sol)
+    assert_(cost_eval.penalised_cost(better) < cost_eval.penalised_cost(sol))
+
+
+@mark.parametrize("tol", [-1.0, -0.01, 1.01, 10.9, 1000])
+def test_intensify_overlap_tolerance_raises_outside_unit_interval(tol):
+    data = read("data/RC208.txt", "solomon", round_func="trunc")
+    rng = RandomNumberGenerator(seed=42)
+
+    neighbours = compute_neighbours(data)
+    ls = LocalSearch(data, rng, neighbours)
+    ls.add_route_operator(RelocateStar(data))
+
+    cost_eval = CostEvaluator(1, 1)
+    sol = Solution.make_random(data, rng)
+
+    with assert_raises(RuntimeError):  # each tolerance value is outside [0, 1]
+        ls.intensify(sol, cost_eval, overlap_tolerance=tol)
+
+
+def test_local_search_raises_for_incomplete_solutions():
+    data = read("data/OkSmallPrizes.txt")
+    rng = RandomNumberGenerator(seed=42)
+
+    ls = LocalSearch(data, rng, compute_neighbours(data))
+    ls.add_node_operator(Exchange10(data))
+
+    cost_eval = CostEvaluator(1, 1)
+    sol = Solution(data, [[2], [3, 4]])  # 1 is required but not visited
+
+    with assert_raises(RuntimeError):
+        ls.search(sol, cost_eval)

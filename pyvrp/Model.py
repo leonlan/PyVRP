@@ -3,16 +3,16 @@ from warnings import warn
 
 import numpy as np
 
-from pyvrp.GeneticAlgorithm import GeneticAlgorithm, GeneticAlgorithmParams
+from pyvrp.GeneticAlgorithm import GeneticAlgorithm
 from pyvrp.PenaltyManager import PenaltyManager
 from pyvrp.Population import Population, PopulationParams
 from pyvrp.Result import Result
 from pyvrp._pyvrp import (
     Client,
     ProblemData,
+    RandomNumberGenerator,
     Solution,
     VehicleType,
-    XorShift128,
 )
 from pyvrp.constants import MAX_USER_VALUE, MAX_VALUE
 from pyvrp.crossover import selective_route_exchange as srex
@@ -24,6 +24,10 @@ Depot = Client
 
 
 class Edge:
+    """
+    Stores an edge connecting two locations.
+    """
+
     __slots__ = ["frm", "to", "distance", "duration"]
 
     def __init__(self, frm: Client, to: Client, distance: int, duration: int):
@@ -271,7 +275,7 @@ class Model:
         )
 
         data = self.data()
-        rng = XorShift128(seed=seed)
+        rng = RandomNumberGenerator(seed=seed)
         ls = LocalSearch(data, rng, compute_neighbours(data))
 
         for node_op in NODE_OPERATORS:
@@ -288,7 +292,6 @@ class Model:
             for _ in range(pop_params.min_pop_size)
         ]
 
-        gen_params = GeneticAlgorithmParams(collect_statistics=True)
-        gen_args = (data, pm, rng, pop, ls, srex, init, gen_params)
+        gen_args = (data, pm, rng, pop, ls, srex, init)
         algo = GeneticAlgorithm(*gen_args)  # type: ignore
         return algo.run(stop)
