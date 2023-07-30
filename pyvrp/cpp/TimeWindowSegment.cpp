@@ -11,6 +11,8 @@ Duration TimeWindowSegment::twLate() const { return twLate_; }
 
 Duration TimeWindowSegment::releaseTime() const { return releaseTime_; }
 
+Duration TimeWindowSegment::dispatchTime() const { return dispatchTime_; }
+
 TimeWindowSegment::TimeWindowSegment(size_t idx,
                                      ProblemData::Client const &client)
     : idxFirst_(idx),
@@ -19,6 +21,7 @@ TimeWindowSegment::TimeWindowSegment(size_t idx,
       timeWarp_(0),
       twEarly_(client.twEarly),
       twLate_(client.twLate),
-      releaseTime_(client.releaseTime)
+      releaseTime_(client.releaseTime),
+      dispatchTime_(client.dispatchTime)
 {
 }

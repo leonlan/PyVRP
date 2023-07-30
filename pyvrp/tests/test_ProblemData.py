@@ -64,13 +64,15 @@ def test_client_constructor_initialises_data_fields_correctly(
         "tw_early",
         "tw_late",
         "release_time",
+        "dispatch_time",
         "prize",
     ),
     [
-        (1, 1, 1, 1, 1, 0, 0, 0),  # late < early
-        (1, 1, 1, -1, 0, 1, 0, 0),  # negative service duration
-        (1, 1, -1, 1, 0, 1, 0, 0),  # negative demand
-        (1, 1, 1, 1, 0, 1, 0, -1),  # negative prize
+        (1, 1, 1, 1, 1, 0, 0, 0, 0),  # late < early
+        (1, 1, 1, -1, 0, 1, 0, 0, 0),  # negative service duration
+        (1, 1, -1, 1, 0, 1, 0, 0, 0),  # negative demand
+        (1, 1, 1, 1, 0, 1, 1, 0, 0),  # dispatch < release
+        (1, 1, 1, 1, 0, 1, 0, 0, -1),  # negative prize
     ],
 )
 def test_raises_for_invalid_client_data(
@@ -81,18 +83,29 @@ def test_raises_for_invalid_client_data(
     tw_early: int,
     tw_late: int,
     release_time: int,
+    dispatch_time: int,
     prize: int,
 ):
     with assert_raises(ValueError):
-        Client(x, y, demand, service, tw_early, tw_late, release_time, prize)
+        Client(
+            x,
+            y,
+            demand,
+            service,
+            tw_early,
+            tw_late,
+            release_time,
+            dispatch_time,
+            prize,
+        )
 
 
 @mark.parametrize(
-    "x,y,demand,service,tw_early,tw_late,release_time,prize",
+    "x,y,demand,service,tw_early,tw_late,release_time,dispatch_time,prize",
     [
-        (0, 0, 1, 0, 0, 0, 0, 0),  # demand != 0
-        (0, 0, 0, 1, 0, 0, 0, 0),  # service duration != 0
-        (0, 0, 0, 0, 0, 0, 1, 0),  # release time != 0
+        (0, 0, 1, 0, 0, 0, 0, 0, 0),  # demand != 0
+        (0, 0, 0, 1, 0, 0, 0, 0, 0),  # service duration != 0
+        (0, 0, 0, 0, 0, 0, 1, 1, 0),  # release time != 0
     ],
 )
 def test_raises_for_invalid_depot_data(
@@ -103,10 +116,19 @@ def test_raises_for_invalid_depot_data(
     tw_early: int,
     tw_late: int,
     release_time: int,
+    dispatch_time: int,
     prize: int,
 ):
     depot = Client(
-        x, y, demand, service, tw_early, tw_late, release_time, prize
+        x,
+        y,
+        demand,
+        service,
+        tw_early,
+        tw_late,
+        release_time,
+        dispatch_time,
+        prize,
     )
 
     with assert_raises(ValueError):

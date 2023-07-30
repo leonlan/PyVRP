@@ -95,6 +95,11 @@ public:
      */
     [[nodiscard]] Duration releaseTime() const;
 
+    /**
+     * Latest possible dispatch time of the clients in this route segment.
+     */
+    [[nodiscard]] Duration dispatchTime() const;
+
     // TODO remove this constructor.
     TimeWindowSegment() = default;
 

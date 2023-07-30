@@ -248,6 +248,7 @@ Solution::Route::Route(ProblemData const &data,
     slack_ = tws.twLate() - tws.twEarly();
     timeWarp_ = tws.totalTimeWarp();
     release_ = tws.releaseTime();
+    dispatch_ = tws.dispatchTime();
 }
 
 bool Solution::Route::empty() const { return visits_.empty(); }
