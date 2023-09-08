@@ -80,7 +80,8 @@ void Route::clear()
                  0,
                  std::max(depot.twEarly, shiftStart),
                  std::min(depot.twLate, shiftEnd),
-                 0);
+                 0,
+                 depot.twLate);
 
     stats.clear();  // clear stats and reinsert depot statistics.
     stats.emplace_back(depotTws);

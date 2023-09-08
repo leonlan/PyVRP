@@ -253,6 +253,29 @@ def test_feasibility_release_times():
     assert_(sol.is_feasible())
 
 
+def test_feasibility_dispatch_times():
+    data = read("data/OkSmallDispatchTimes.txt")
+
+    # This example is similar to the example in release times, but now we have
+    # additional time warp due to the dispatch times being earlier than the
+    # release times. Client 1 is released at 20'000 and must be dispatched by
+    # 20'000, but client 2 is released at 5'000 and must be dispatched by
+    # 10'000. So the route earliest release is 20'000 and the route latest
+    # dispatch is 10'000, so we incur an additional time warp of 20'000 -
+    # 10'000 = 10'000 to start the route at release time.
+    sol = Solution(data, [[1, 2], [3], [4]])
+    assert_(not sol.is_feasible())
+    assert_equal(sol.time_warp(), 14396)
+
+    # Visiting clients 2 and 3 together is feasible: both clients are released
+    # at time 5'000, and must be dispatched by min(10'000, 45'000) = 10'000.
+    # We arrive at client 2 at 5'000 + 1'944 and wait till the TW opens
+    # (12'000). We arrive at client 3 at 12'000 + 360 + 621 = 12'981, which is
+    # before the TW closes (15'300).
+    sol = Solution(data, [[1], [2, 3], [4]])
+    assert_(sol.is_feasible())
+
+
 def test_distance_calculation(ok_small):
     """
     Tests that route distance calculations are correct, and that the overall
@@ -488,6 +511,18 @@ def test_route_release_time():
     # release time.
     assert_(not routes[1].has_time_warp())
     assert_(routes[1].start_time() > routes[1].release_time())
+
+
+def test_route_dispatch_time():
+    data = read("data/OkSmallDispatchTimes.txt")
+    sol = Solution(data, [[1, 3], [2, 4]])
+    routes = sol.get_routes()
+
+    # The client dispatch times are 20'000, 10'000, 45'000 and 10'000.
+    # So the first route has a dispatch time of min(20'000, 45'000) = 20'000,
+    # and the second route has a dispatch time of min(10'000, 10'000) = 10'000.
+    assert_allclose(routes[0].dispatch_time(), 20000)
+    assert_allclose(routes[1].dispatch_time(), 10000)
 
 
 @mark.parametrize(

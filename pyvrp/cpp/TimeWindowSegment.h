@@ -41,13 +41,14 @@ class TimeWindowSegment
 {
     using TWS = TimeWindowSegment;
 
-    size_t idxFirst_ = 0;       // Index of the first client in the segment
-    size_t idxLast_ = 0;        // Index of the last client in the segment
-    Duration duration_ = 0;     // Total duration, incl. waiting and servicing
-    Duration timeWarp_ = 0;     // Cumulative time warp
-    Duration twEarly_ = 0;      // Earliest visit moment of first client
-    Duration twLate_ = 0;       // Latest visit moment of first client
-    Duration releaseTime_ = 0;  // Earliest allowed moment to leave the depot
+    size_t idxFirst_ = 0;        // Index of the first client in the segment
+    size_t idxLast_ = 0;         // Index of the last client in the segment
+    Duration duration_ = 0;      // Total duration, incl. waiting and servicing
+    Duration timeWarp_ = 0;      // Cumulative time warp
+    Duration twEarly_ = 0;       // Earliest visit moment of first client
+    Duration twLate_ = 0;        // Latest visit moment of first client
+    Duration releaseTime_ = 0;   // Earliest allowed moment to leave the depot
+    Duration dispatchTime_ = 0;  // Latest allowed moment to leave the depot
 
     [[nodiscard]] inline TWS merge(Matrix<Duration> const &durationMatrix,
                                    TWS const &other) const;
@@ -92,6 +93,11 @@ public:
      */
     [[nodiscard]] Duration releaseTime() const;
 
+    /**
+     * Latest possible dispatch time of the clients in this route segment.
+     */
+    [[nodiscard]] Duration dispatchTime() const;
+
     // Construct from attributes of the given client.
     TimeWindowSegment(size_t idx, ProblemData::Client const &client);
 
@@ -102,7 +108,8 @@ public:
                              Duration timeWarp,
                              Duration twEarly,
                              Duration twLate,
-                             Duration releaseTime);
+                             Duration releaseTime,
+                             Duration dispatchTime);
 };
 
 TimeWindowSegment TimeWindowSegment::merge(
@@ -131,7 +138,8 @@ TimeWindowSegment TimeWindowSegment::merge(
             timeWarp_ + other.timeWarp_ + diffTw,
             std::max(other.twEarly_ - atOther, twEarly_) - diffWait,
             std::min(other.twLate_ - atOther, twLate_) + diffTw,
-            std::max(releaseTime_, other.releaseTime_)};
+            std::max(releaseTime_, other.releaseTime_),
+            std::min(dispatchTime_, other.dispatchTime_)};
 #endif
 }
 
@@ -156,7 +164,8 @@ TimeWindowSegment TimeWindowSegment::merge(
 
 Duration TimeWindowSegment::totalTimeWarp() const
 {
-    return timeWarp_ + std::max<Duration>(releaseTime_ - twLate_, 0);
+    return timeWarp_ + std::max<Duration>(releaseTime_ - twLate_, 0)
+           + std::max<Duration>(releaseTime_ - dispatchTime_, 0);
 }
 
 TimeWindowSegment::TimeWindowSegment(size_t idxFirst,
@@ -165,14 +174,16 @@ TimeWindowSegment::TimeWindowSegment(size_t idxFirst,
                                      Duration timeWarp,
                                      Duration twEarly,
                                      Duration twLate,
-                                     Duration releaseTime)
+                                     Duration releaseTime,
+                                     Duration dispatchTime)
     : idxFirst_(idxFirst),
       idxLast_(idxLast),
       duration_(duration),
       timeWarp_(timeWarp),
       twEarly_(twEarly),
       twLate_(twLate),
-      releaseTime_(releaseTime)
+      releaseTime_(releaseTime),
+      dispatchTime_(dispatchTime)
 {
 }
 }  // namespace pyvrp

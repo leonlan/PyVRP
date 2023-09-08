@@ -15,16 +15,17 @@ from pyvrp import Client, ProblemData, VehicleType
         "tw_early",
         "tw_late",
         "release_time",
+        "dispatch_time",
         "prize",
     ),
     [
-        (1, 1, 1, 1, 0, 1, 0, 0),  # normal
-        (1, 1, 1, 0, 0, 1, 0, 0),  # zero duration
-        (1, 1, 0, 1, 0, 1, 0, 0),  # zero demand
-        (1, 1, 1, 1, 0, 0, 0, 0),  # zero length time interval
-        (-1, -1, 1, 1, 0, 1, 0, 0),  # negative coordinates
-        (1, 1, 1, 1, 0, 1, 1, 0),  # positive release time
-        (0, 0, 1, 1, 0, 1, 0, 1),  # positive prize
+        (1, 1, 1, 1, 0, 1, 0, 1, 0),  # normal
+        (1, 1, 1, 0, 0, 1, 0, 1, 0),  # zero duration
+        (1, 1, 0, 1, 0, 1, 0, 1, 0),  # zero demand
+        (1, 1, 1, 1, 0, 0, 0, 1, 0),  # zero length time interval
+        (-1, -1, 1, 1, 0, 1, 0, 1, 0),  # negative coordinates
+        (1, 1, 1, 1, 0, 1, 1, 1, 0),  # positive release time
+        (0, 0, 1, 1, 0, 1, 0, 1, 1),  # positive prize
     ],
 )
 def test_client_constructor_initialises_data_fields_correctly(
@@ -35,6 +36,7 @@ def test_client_constructor_initialises_data_fields_correctly(
     tw_early: int,
     tw_late: int,
     release_time: int,
+    dispatch_time: int,
     prize: int,
 ):
     """
@@ -42,7 +44,15 @@ def test_client_constructor_initialises_data_fields_correctly(
     Client's constructor.
     """
     client = Client(
-        x, y, demand, service_duration, tw_early, tw_late, release_time, prize
+        x,
+        y,
+        demand,
+        service_duration,
+        tw_early,
+        tw_late,
+        release_time,
+        dispatch_time,
+        prize,
     )
     assert_allclose(client.x, x)
     assert_allclose(client.y, y)
@@ -51,6 +61,7 @@ def test_client_constructor_initialises_data_fields_correctly(
     assert_allclose(client.tw_early, tw_early)
     assert_allclose(client.tw_late, tw_late)
     assert_allclose(client.release_time, release_time)
+    assert_allclose(client.dispatch_time, dispatch_time)
     assert_allclose(client.prize, prize)
 
 
@@ -63,14 +74,15 @@ def test_client_constructor_initialises_data_fields_correctly(
         "tw_early",
         "tw_late",
         "release_time",
+        "dispatch_time",
         "prize",
     ),
     [
-        (1, 1, 1, 0, 1, 0, 0, 0),  # late < early
-        (1, 1, 1, 0, -1, 0, 0, 0),  # negative early
-        (1, 1, 0, -1, 0, 1, 0, 1),  # negative service duration
-        (1, 1, -1, 1, 0, 1, 0, 0),  # negative demand
-        (1, 1, 1, 1, 0, 1, 0, -1),  # negative prize
+        (1, 1, 1, 0, 1, 0, 0, 1, 0),  # late < early
+        (1, 1, 1, 0, -1, 0, 0, 1, 0),  # negative early
+        (1, 1, 0, -1, 0, 1, 0, 1, 1),  # negative service duration
+        (1, 1, -1, 1, 0, 1, 0, 1, 0),  # negative demand
+        (1, 1, 1, 1, 0, 1, 0, 1, -1),  # negative prize
     ],
 )
 def test_raises_for_invalid_client_data(
@@ -81,6 +93,7 @@ def test_raises_for_invalid_client_data(
     tw_early: int,
     tw_late: int,
     release_time: int,
+    dispatch_time: int,
     prize: int,
 ):
     """
@@ -91,11 +104,11 @@ def test_raises_for_invalid_client_data(
 
 
 @pytest.mark.parametrize(
-    "x,y,demand,service,tw_early,tw_late,release_time,prize",
+    "x,y,demand,service,tw_early,tw_late,release_time,dispatch_time,prize",
     [
-        (0, 0, 1, 0, 0, 0, 0, 0),  # demand != 0
-        (0, 0, 0, 1, 0, 0, 0, 0),  # service duration != 0
-        (0, 0, 0, 0, 0, 0, 1, 0),  # release time != 0
+        (0, 0, 1, 0, 0, 0, 0, 1, 0),  # demand != 0
+        (0, 0, 0, 1, 0, 0, 0, 1, 0),  # service duration != 0
+        (0, 0, 0, 0, 0, 0, 1, 1, 0),  # release time != 0
     ],
 )
 def test_raises_for_invalid_depot_data(
@@ -106,13 +119,22 @@ def test_raises_for_invalid_depot_data(
     tw_early: int,
     tw_late: int,
     release_time: int,
+    dispatch_time: int,
     prize: int,
 ):
     """
     Tests that an invalid depot configuration is not accepted.
     """
     depot = Client(
-        x, y, demand, service, tw_early, tw_late, release_time, prize
+        x,
+        y,
+        demand,
+        service,
+        tw_early,
+        tw_late,
+        release_time,
+        dispatch_time,
+        prize,
     )
 
     with assert_raises(ValueError):

@@ -61,6 +61,7 @@ PYBIND11_MODULE(_pyvrp, m)
                       pyvrp::Duration,
                       pyvrp::Duration,
                       pyvrp::Duration,
+                      pyvrp::Duration,
                       pyvrp::Cost,
                       bool>(),
              py::arg("x"),
@@ -70,6 +71,7 @@ PYBIND11_MODULE(_pyvrp, m)
              py::arg("tw_early") = 0,
              py::arg("tw_late") = 0,
              py::arg("release_time") = 0,
+             py::arg("dispatch_time") = 0,
              py::arg("prize") = 0,
              py::arg("required") = true)
         .def_readonly("x", &ProblemData::Client::x)
@@ -79,6 +81,7 @@ PYBIND11_MODULE(_pyvrp, m)
         .def_readonly("tw_early", &ProblemData::Client::twEarly)
         .def_readonly("tw_late", &ProblemData::Client::twLate)
         .def_readonly("release_time", &ProblemData::Client::releaseTime)
+        .def_readonly("dispatch_time", &ProblemData::Client::dispatchTime)
         .def_readonly("prize", &ProblemData::Client::prize)
         .def_readonly("required", &ProblemData::Client::required);
 
@@ -204,6 +207,9 @@ PYBIND11_MODULE(_pyvrp, m)
         .def("release_time",
              &Solution::Route::releaseTime,
              DOC(pyvrp, Solution, Route, releaseTime))
+        .def("dispatch_time",
+             &Solution::Route::dispatchTime,
+             DOC(pyvrp, Solution, Route, dispatchTime))
         .def("prizes",
              &Solution::Route::prizes,
              DOC(pyvrp, Solution, Route, prizes))
@@ -525,6 +531,7 @@ PYBIND11_MODULE(_pyvrp, m)
                       pyvrp::Duration,
                       pyvrp::Duration,
                       pyvrp::Duration,
+                      pyvrp::Duration,
                       pyvrp::Duration>(),
              py::arg("idx_first"),
              py::arg("idx_last"),
@@ -532,7 +539,8 @@ PYBIND11_MODULE(_pyvrp, m)
              py::arg("time_warp"),
              py::arg("tw_early"),
              py::arg("tw_late"),
-             py::arg("release_time"))
+             py::arg("release_time"),
+             py::arg("dispatch_time"))
         .def(
             "duration", &TWS::duration, DOC(pyvrp, TimeWindowSegment, duration))
         .def("tw_early", &TWS::twEarly, DOC(pyvrp, TimeWindowSegment, twEarly))
