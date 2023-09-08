@@ -5,6 +5,7 @@
 #include "Measure.h"
 
 #include <iosfwd>
+#include <optional>
 #include <vector>
 
 namespace pyvrp
@@ -112,9 +113,37 @@ public:
     };
 
     /**
-     * VehicleType(capacity: int, num_available: int)
+     * VehicleType(
+     *     capacity: int,
+     *     num_available: int,
+     *     fixed_cost: int = 0,
+     *     tw_early: Optional[int] = None,
+     *     tw_late: Optional[int] = None,
+     * )
      *
      * Simple data object storing all vehicle type data as properties.
+     *
+     * .. note::
+     *
+     *    If ``tw_early`` is set, then also ``tw_late`` must be provided to
+     *    completely specify the shift duration (and vice versa). If neither
+     *    are given, the shift duration defaults to the depot's time window.
+     *
+     * Parameters
+     * ----------
+     * capacity
+     *     Capacity (maximum total demand) of this vehicle type. Must be
+     *     non-negative.
+     * num_available
+     *     Number of vehicles of this type that are available. Must be positive.
+     * fixed_cost
+     *     Fixed cost of using a vehicle of this type. Default 0.
+     * tw_early
+     *     Start of the vehicle type's shift. Defaults to the depot's opening
+     *     time if not given.
+     * tw_late
+     *     End of the vehicle type's shift. Defaults to the depot's closing
+     *     time if not given.
      *
      * Attributes
      * ----------
@@ -124,12 +153,27 @@ public:
      *     Number of vehicles of this type that are available.
      * depot
      *     Depot associated with these vehicles.
+     * fixed_cost
+     *     Fixed cost of using a vehicle of this type.
+     * tw_early
+     *     Start of the vehicle type's shift, if specified.
+     * tw_late
+     *     End of the vehicle type's shift, if specified.
      */
     struct VehicleType
     {
         Load const capacity;        // This type's vehicle capacity
         size_t const numAvailable;  // Available vehicles of this type
         size_t const depot = 0;     // Departure and return depot location
+        Cost const fixedCost;       // Fixed cost of using this vehicle type
+        std::optional<Duration> const twEarly;  // Start of shift
+        std::optional<Duration> const twLate;   // End of shift
+
+        VehicleType(Load capacity,
+                    size_t numAvailable,
+                    Cost fixedCost = 0,
+                    std::optional<Duration> twEarly = std::nullopt,
+                    std::optional<Duration> twLate = std::nullopt);
     };
 
 private:
@@ -224,12 +268,12 @@ public:
     /**
      * @return The full travel distance matrix.
      */
-    [[nodiscard]] Matrix<Distance> const &distanceMatrix() const;
+    [[nodiscard]] inline Matrix<Distance> const &distanceMatrix() const;
 
     /**
      * @return The full travel duration matrix.
      */
-    [[nodiscard]] Matrix<Duration> const &durationMatrix() const;
+    [[nodiscard]] inline Matrix<Duration> const &durationMatrix() const;
 
     /**
      * Number of clients in this problem instance.
@@ -242,16 +286,6 @@ public:
     [[nodiscard]] size_t numClients() const;
 
     /**
-     * Number of vehicles in this problem instance.
-     *
-     * Returns
-     * -------
-     * int
-     *     Number of vehicles in this problem instance.
-     */
-    [[nodiscard]] size_t numVehicleTypes() const;
-
-    /**
      * Number of vehicle types in this problem instance.
      *
      * Returns
@@ -259,12 +293,47 @@ public:
      * int
      *     Number of vehicle types in this problem instance.
      */
+    [[nodiscard]] size_t numVehicleTypes() const;
+
+    /**
+     * Number of vehicles in this problem instance.
+     *
+     * Returns
+     * -------
+     * int
+     *     Number of vehicles in this problem instance.
+     */
     [[nodiscard]] size_t numVehicles() const;
 
     /**
-     * Constructs a ProblemData object with the given data. Assumes the list of
-     * clients contains the depot, such that each vector is one longer than the
-     * number of clients.
+     * Returns a new ProblemData instance with the same data as this instance,
+     * except for the given parameters, which are used instead.
+     *
+     * Parameters
+     * ----------
+     * clients
+     *    Optional list of clients (including depot at index 0).
+     * vehicle_types
+     *    Optional list of vehicle types.
+     * distance_matrix
+     *    Optional distance matrix.
+     * duration_matrix
+     *    Optional duration matrix.
+     *
+     * Returns
+     * -------
+     * ProblemData
+     *    A new ProblemData instance with possibly replaced data.
+     * */
+    ProblemData replace(std::optional<std::vector<Client>> &clients,
+                        std::optional<std::vector<VehicleType>> &vehicleTypes,
+                        std::optional<Matrix<Distance>> &distMat,
+                        std::optional<Matrix<Duration>> &durMat);
+
+    /**
+     * Constructs a ProblemData object with the given data. Assumes the list
+     * of clients contains the depot, such that each vector is one longer
+     * than the number of clients.
      *
      * @param clients      List of clients (including depot at index 0).
      * @param vehicleTypes List of vehicle types.
@@ -297,6 +366,10 @@ Duration ProblemData::duration(size_t first, size_t second) const
 {
     return dur_(first, second);
 }
+
+Matrix<Distance> const &ProblemData::distanceMatrix() const { return dist_; }
+
+Matrix<Duration> const &ProblemData::durationMatrix() const { return dur_; }
 }  // namespace pyvrp
 
 #endif  // PYVRP_PROBLEMDATA_H

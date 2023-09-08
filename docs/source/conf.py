@@ -29,6 +29,7 @@ autodoc_typehints = "signature"
 # -- numpydoc
 numpydoc_xref_param_type = True
 numpydoc_class_members_toctree = False
+numpydoc_attributes_as_param_list = False
 napoleon_include_special_with_doc = True
 
 # -- nbsphinx
@@ -40,6 +41,7 @@ extensions = [
     "sphinx.ext.doctest",
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.napoleon",
     "sphinx_immaterial",
     "nbsphinx",
     "numpydoc",
@@ -58,6 +60,7 @@ intersphinx_disabled_domains = ["std"]
 templates_path = ["_templates"]
 
 add_module_names = False
+python_use_unqualified_type_names = True
 
 # -- Options for HTML output
 html_theme = "sphinx_immaterial"
@@ -103,6 +106,16 @@ html_theme_options = {
             "aliases": [],
         },
         {
+            "version": "https://pyvrp.github.io/v0.6.0",
+            "title": "v0.6.0",
+            "aliases": [],
+        },
+        {
+            "version": "https://pyvrp.github.io/v0.5.0",
+            "title": "v0.5.0",
+            "aliases": [],
+        },
+        {
             "version": "https://pyvrp.github.io/v0.4.4",
             "title": "v0.4.4",
             "aliases": [],
@@ -124,6 +137,16 @@ html_theme_options = {
         },
     ],
 }
+
+python_resolve_unqualified_typing = True
+python_transform_type_annotations_pep585 = True
+python_transform_type_annotations_pep604 = True
+object_description_options = [
+    ("py:.*", dict(include_fields_in_toc=False, include_rubrics_in_toc=False)),
+    ("py:attribute", dict(include_in_toc=False)),
+    ("py:parameter", dict(include_in_toc=False)),
+]
+
 
 # -- Options for EPUB output
 epub_show_urls = "footnote"

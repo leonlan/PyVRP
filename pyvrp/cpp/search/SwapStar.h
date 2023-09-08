@@ -12,13 +12,13 @@
 namespace pyvrp::search
 {
 /**
- * SwapStar()
+ * SwapStar(data: ProblemData)
  *
- * Explores the SWAP* neighbourhood of [1]. The SWAP* neighbourhood explores
+ * Explores the SWAP* neighbourhood of [1]_. The SWAP* neighbourhood explores
  * free form re-insertions of clients :math:`U` and :math:`V` in the given
  * routes (so the clients are exchanged between routes, but they are not
  * necessarily inserted in the place of the other exchanged client). Our
- * implementation of the SWAP* neighbourhood follows Algorithm 2 of [1] fairly
+ * implementation of the SWAP* neighbourhood follows Algorithm 2 of [1]_ fairly
  * closely.
  *
  * References
@@ -71,11 +71,17 @@ class SwapStar : public LocalSearchOperator<Route>
         Cost cost = 0;
 
         Route::Node *U = nullptr;
-        Route::Node *UAfter = nullptr;
+        Route::Node *UAfter = nullptr;  // insert U after this node in V's route
 
         Route::Node *V = nullptr;
-        Route::Node *VAfter = nullptr;
+        Route::Node *VAfter = nullptr;  // insert V after this node in U's route
     };
+
+    Matrix<ThreeBest> cache;
+    Matrix<Cost> removalCosts;
+    std::vector<bool> updated;
+
+    BestMove best;
 
     // Updates the removal costs of clients in the given route
     void updateRemovalCosts(Route *R1, CostEvaluator const &costEvaluator);
@@ -91,11 +97,12 @@ class SwapStar : public LocalSearchOperator<Route>
     inline std::pair<Cost, Route::Node *> getBestInsertPoint(
         Route::Node *U, Route::Node *V, CostEvaluator const &costEvaluator);
 
-    Matrix<ThreeBest> cache;
-    Matrix<Cost> removalCosts;
-    std::vector<bool> updated;
-
-    BestMove best;
+    // Evaluates the delta cost for ``V``'s route of inserting ``U`` after
+    // ``V``, while removing ``remove`` from ``V``'s route.
+    inline Cost evaluateMove(Route::Node *U,
+                             Route::Node *V,
+                             Route::Node *remove,
+                             CostEvaluator const &costEvaluator);
 
 public:
     void init(Solution const &solution) override;

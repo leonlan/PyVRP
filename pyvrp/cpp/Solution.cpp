@@ -12,9 +12,10 @@ using pyvrp::Duration;
 using pyvrp::Load;
 using pyvrp::Solution;
 
-using Client = int;
+using Client = size_t;
 using Visits = std::vector<Client>;
 using Routes = std::vector<Solution::Route>;
+using Neighbours = std::vector<std::optional<std::pair<Client, Client>>>;
 
 void Solution::evaluate(ProblemData const &data)
 {
@@ -30,6 +31,7 @@ void Solution::evaluate(ProblemData const &data)
         distance_ += route.distance();
         timeWarp_ += route.timeWarp();
         excessLoad_ += route.excessLoad();
+        fixedVehicleCost_ += data.vehicleType(route.vehicleType()).fixedCost;
     }
 
     uncollectedPrizes_ = allPrizes - prizes_;
@@ -39,12 +41,11 @@ size_t Solution::numRoutes() const { return routes_.size(); }
 
 size_t Solution::numClients() const { return numClients_; }
 
+size_t Solution::numMissingClients() const { return numMissingClients_; }
+
 Routes const &Solution::getRoutes() const { return routes_; }
 
-std::vector<std::pair<Client, Client>> const &Solution::getNeighbours() const
-{
-    return neighbours;
-}
+Neighbours const &Solution::getNeighbours() const { return neighbours_; }
 
 bool Solution::isFeasible() const
 {
@@ -61,6 +62,8 @@ Distance Solution::distance() const { return distance_; }
 
 Load Solution::excessLoad() const { return excessLoad_; }
 
+Cost Solution::fixedVehicleCost() const { return fixedVehicleCost_; }
+
 Cost Solution::prizes() const { return prizes_; }
 
 Cost Solution::uncollectedPrizes() const { return uncollectedPrizes_; }
@@ -71,7 +74,7 @@ void Solution::makeNeighbours()
 {
     for (auto const &route : routes_)
         for (size_t idx = 0; idx != route.size(); ++idx)
-            neighbours[route[idx]]
+            neighbours_[route[idx]]
                 = {idx == 0 ? 0 : route[idx - 1],                  // pred
                    idx == route.size() - 1 ? 0 : route[idx + 1]};  // succ
 }
@@ -89,7 +92,7 @@ bool Solution::operator==(Solution const &other) const
 
     // Now test if the neighbours are all equal. If that's the case we have
     // the same visit structure across routes.
-    if (neighbours != other.neighbours)
+    if (neighbours_ != other.neighbours_)
         return false;
 
     // The visits are the same for both solutions, but the vehicle assignments
@@ -108,10 +111,10 @@ bool Solution::operator==(Solution const &other) const
 }
 
 Solution::Solution(ProblemData const &data, RandomNumberGenerator &rng)
-    : neighbours(data.numClients() + 1, {0, 0})
+    : neighbours_(data.numClients() + 1, std::nullopt)
 {
     // Shuffle clients (to create random routes)
-    auto clients = std::vector<int>(data.numClients());
+    auto clients = std::vector<size_t>(data.numClients());
     std::iota(clients.begin(), clients.end(), 1);
     std::shuffle(clients.begin(), clients.end(), rng);
 
@@ -153,7 +156,7 @@ Solution::Solution(ProblemData const &data,
 }
 
 Solution::Solution(ProblemData const &data, std::vector<Route> const &routes)
-    : routes_(routes), neighbours(data.numClients() + 1, {0, 0})
+    : routes_(routes), neighbours_(data.numClients() + 1, std::nullopt)
 {
     if (routes.size() > data.numVehicles())
     {
@@ -200,6 +203,29 @@ Solution::Solution(ProblemData const &data, std::vector<Route> const &routes)
     evaluate(data);
 }
 
+Solution::Solution(size_t numClients,
+                   size_t numMissingClients,
+                   Distance distance,
+                   Load excessLoad,
+                   Cost fixedVehicleCost,
+                   Cost prizes,
+                   Cost uncollectedPrizes,
+                   Duration timeWarp,
+                   Routes const &routes,
+                   Neighbours neighbours)
+    : numClients_(numClients),
+      numMissingClients_(numMissingClients),
+      distance_(distance),
+      excessLoad_(excessLoad),
+      fixedVehicleCost_(fixedVehicleCost),
+      prizes_(prizes),
+      uncollectedPrizes_(uncollectedPrizes),
+      timeWarp_(timeWarp),
+      routes_(routes),
+      neighbours_(neighbours)
+{
+}
+
 Solution::Route::Route(ProblemData const &data,
                        Visits visits,
                        size_t const vehicleType)
@@ -210,9 +236,22 @@ Solution::Route::Route(ProblemData const &data,
 
     auto const &vehType = data.vehicleType(vehicleType);
     auto const &depot = data.client(vehType.depot);
-    auto const &durMat = data.durationMatrix();
 
-    TimeWindowSegment depotTws(vehType.depot, depot);
+    // Time window is limited by both the depot open and closing times, and
+    // the vehicle's start and end of shift, whichever is tighter. If the
+    // vehicle does not have a shift time window, we default to the depot's
+    // open and close times.
+    auto const shiftStart = vehType.twEarly.value_or(depot.twEarly);
+    auto const shiftEnd = vehType.twLate.value_or(depot.twLate);
+
+    TimeWindowSegment depotTws(vehType.depot,
+                               vehType.depot,
+                               0,
+                               0,
+                               std::max(depot.twEarly, shiftStart),
+                               std::min(depot.twLate, shiftEnd),
+                               0);
+
     auto tws = depotTws;
     size_t prevClient = vehType.depot;
 
@@ -231,7 +270,7 @@ Solution::Route::Route(ProblemData const &data,
         centroid_.second += static_cast<double>(clientData.y) / size();
 
         auto const clientTws = TimeWindowSegment(client, clientData);
-        tws = TimeWindowSegment::merge(durMat, tws, clientTws);
+        tws = TimeWindowSegment::merge(data.durationMatrix(), tws, clientTws);
 
         prevClient = client;
     }
@@ -242,13 +281,46 @@ Solution::Route::Route(ProblemData const &data,
 
     excessLoad_ = std::max<Load>(demand_ - vehType.capacity, 0);
 
-    tws = TimeWindowSegment::merge(durMat, tws, depotTws);
+    tws = TimeWindowSegment::merge(data.durationMatrix(), tws, depotTws);
     duration_ = tws.duration();
     startTime_ = tws.twEarly();
     slack_ = tws.twLate() - tws.twEarly();
     timeWarp_ = tws.totalTimeWarp();
     release_ = tws.releaseTime();
     dispatch_ = tws.dispatchTime();
+}
+
+Solution::Route::Route(Visits visits,
+                       Distance distance,
+                       Load demand,
+                       Load excessLoad,
+                       Duration duration,
+                       Duration timeWarp,
+                       Duration travel,
+                       Duration service,
+                       Duration wait,
+                       Duration release,
+                       Duration startTime,
+                       Duration slack,
+                       Cost prizes,
+                       std::pair<double, double> centroid,
+                       size_t vehicleType)
+    : visits_(std::move(visits)),
+      distance_(distance),
+      demand_(demand),
+      excessLoad_(excessLoad),
+      duration_(duration),
+      timeWarp_(timeWarp),
+      travel_(travel),
+      service_(service),
+      wait_(wait),
+      release_(release),
+      startTime_(startTime),
+      slack_(slack),
+      prizes_(prizes),
+      centroid_(centroid),
+      vehicleType_(vehicleType)
+{
 }
 
 bool Solution::Route::empty() const { return visits_.empty(); }

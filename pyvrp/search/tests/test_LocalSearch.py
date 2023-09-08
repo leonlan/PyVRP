@@ -1,8 +1,11 @@
+import numpy as np
 from numpy.testing import assert_, assert_equal, assert_raises
 from pytest import mark
 
 from pyvrp import (
+    Client,
     CostEvaluator,
+    ProblemData,
     RandomNumberGenerator,
     Route,
     Solution,
@@ -18,63 +21,64 @@ from pyvrp.search import (
     compute_neighbours,
 )
 from pyvrp.search._search import LocalSearch as cpp_LocalSearch
-from pyvrp.tests.helpers import make_heterogeneous, read
 
 
-def test_local_search_returns_same_solution_when_there_are_no_operators():
-    data = read("data/OkSmall.txt")
+def test_local_search_returns_same_solution_with_empty_neighbourhood(ok_small):
+    """
+    Tests that calling the local search when it only has node operators and
+    an empty neighbourhood is a no-op: since the node operators respect the
+    neighbourhood definition, they cannot do anything with an empty
+    neighbourhood.
+    """
     cost_evaluator = CostEvaluator(20, 6)
     rng = RandomNumberGenerator(seed=42)
 
-    ls = LocalSearch(data, rng, compute_neighbours(data))
-    sol = Solution.make_random(data, rng)
-
-    # No operators have been added, so these calls should be no-ops.
-    assert_equal(ls.search(sol, cost_evaluator), sol)
-    assert_equal(ls.intensify(sol, cost_evaluator), sol)
-
-
-def test_local_search_returns_same_solution_with_empty_neighbourhood():
-    data = read("data/OkSmall.txt")
-    cost_evaluator = CostEvaluator(20, 6)
-    rng = RandomNumberGenerator(seed=42)
-
-    ls = LocalSearch(data, rng, [[] for _ in range(data.num_clients + 1)])
-    ls.add_node_operator(Exchange10(data))
-    ls.add_node_operator(Exchange11(data))
+    neighbours = [[] for _ in range(ok_small.num_clients + 1)]
+    ls = LocalSearch(ok_small, rng, neighbours)
+    ls.add_node_operator(Exchange10(ok_small))
+    ls.add_node_operator(Exchange11(ok_small))
 
     # The search is completed after one iteration due to the empty
     # neighbourhood. This also prevents moves involving empty routes,
     # which are not explicitly forbidden by the empty neighbourhood.
-    sol = Solution.make_random(data, rng)
+    sol = Solution.make_random(ok_small, rng)
     assert_equal(ls.search(sol, cost_evaluator), sol)
 
 
 @mark.parametrize("size", [1, 2, 3, 4, 6, 7])  # num_clients + 1 == 5
-def test_local_search_raises_when_neighbourhood_dimensions_do_not_match(size):
-    data = read("data/OkSmall.txt")
+def test_raises_when_neighbourhood_dimensions_do_not_match(ok_small, size):
+    """
+    Tests that the local search raises when the neighbourhood size does not
+    correspond to the problem dimensions.
+    """
     rng = RandomNumberGenerator(seed=42)
 
     # Each of the given sizes is either smaller than or bigger than desired.
     neighbours = [[] for _ in range(size)]
 
     with assert_raises(RuntimeError):
-        LocalSearch(data, rng, neighbours)
+        LocalSearch(ok_small, rng, neighbours)
 
-    ls = LocalSearch(data, rng, compute_neighbours(data))
+    ls = LocalSearch(ok_small, rng, compute_neighbours(ok_small))
 
     with assert_raises(RuntimeError):
         ls.set_neighbours(neighbours)
 
 
-def test_local_search_raises_when_neighbourhood_contains_self_or_depot():
-    data = read("data/OkSmall.txt")
+def test_raises_when_neighbourhood_contains_self_or_depot(ok_small):
+    """
+    Tests that the local search raises when the granular neighbourhood contains
+    the depot (for any client) or the client is in its own neighbourhood.
+    """
     rng = RandomNumberGenerator(seed=42)
 
-    neighbours = [[client] for client in range(data.num_clients + 1)]
-
+    neighbours = [[], [2], [3], [4], [0]]  # 4 has depot as neighbour
     with assert_raises(RuntimeError):
-        LocalSearch(data, rng, neighbours)
+        LocalSearch(ok_small, rng, neighbours)
+
+    neighbours = [[], [1], [3], [4], [1]]  # 1 has itself as neighbour
+    with assert_raises(RuntimeError):
+        LocalSearch(ok_small, rng, neighbours)
 
 
 @mark.parametrize(
@@ -94,18 +98,21 @@ def test_local_search_raises_when_neighbourhood_contains_self_or_depot():
     ],
 )
 def test_local_search_set_get_neighbours(
+    rc208,
     weight_wait_time: int,
     weight_time_warp: int,
     nb_granular: int,
     symmetric_proximity: bool,
     symmetric_neighbours: bool,
 ):
-    data = read("data/RC208.txt", "solomon", round_func="trunc")
+    """
+    Tests setting and getting neighbours on the local search instance.
+    """
     rng = RandomNumberGenerator(seed=42)
 
     params = NeighbourhoodParams(nb_granular=1)
-    prev_neighbours = compute_neighbours(data, params)
-    ls = LocalSearch(data, rng, prev_neighbours)
+    prev_neighbours = compute_neighbours(rc208, params)
+    ls = LocalSearch(rc208, rng, prev_neighbours)
 
     params = NeighbourhoodParams(
         weight_wait_time,
@@ -114,7 +121,7 @@ def test_local_search_set_get_neighbours(
         symmetric_proximity,
         symmetric_neighbours,
     )
-    neighbours = compute_neighbours(data, params)
+    neighbours = compute_neighbours(rc208, params)
 
     # Test that before we set neighbours we don't have same
     assert_(ls.get_neighbours() != neighbours)
@@ -133,17 +140,15 @@ def test_local_search_set_get_neighbours(
     assert_(ls.get_neighbours() != neighbours)
 
 
-def test_reoptimize_changed_objective_timewarp_OkSmall():
+def test_reoptimize_changed_objective_timewarp_OkSmall(ok_small):
     """
     This test reproduces a bug where loadSolution in LocalSearch.cpp would
     reset the timewarp for a route to 0 if the route was not changed. This
     would cause improving moves with a smaller timewarp not to be considered
     because the current cost doesn't count the current time warp.
     """
-    data = read("data/OkSmall.txt")
     rng = RandomNumberGenerator(seed=42)
-
-    sol = Solution(data, [[1, 2, 3, 4]])
+    sol = Solution(ok_small, [[1, 2, 3, 4]])
 
     # We make neighbours only contain 1 -> 2, so the only feasible move
     # is changing [1, 2, 3, 4] into [2, 1, 3, 4] or moving one of the nodes
@@ -151,8 +156,8 @@ def test_reoptimize_changed_objective_timewarp_OkSmall():
     # smaller time warp, they are considered improving moves with a
     # sufficiently large time warp penalty.
     neighbours = [[], [2], [], [], []]  # 1 -> 2 only
-    ls = LocalSearch(data, rng, neighbours)
-    ls.add_node_operator(Exchange10(data))
+    ls = LocalSearch(ok_small, rng, neighbours)
+    ls.add_node_operator(Exchange10(ok_small))
 
     # With 0 timewarp penalty, the solution should not change since
     # the solution [2, 1, 3, 4] has larger distance
@@ -169,23 +174,23 @@ def test_reoptimize_changed_objective_timewarp_OkSmall():
     assert_(improved_cost < cost_evaluator_tw.penalised_cost(sol))
 
 
-def test_prize_collecting():
+def test_prize_collecting(prize_collecting):
     """
     Tests that local search works on a small prize-collecting instance.
     """
-    data = read("data/p06-2-50.vrp", round_func="dimacs")
     rng = RandomNumberGenerator(seed=42)
     cost_evaluator = CostEvaluator(1, 1)
 
-    sol = Solution.make_random(data, rng)
+    sol = Solution.make_random(prize_collecting, rng)
     sol_cost = cost_evaluator.penalised_cost(sol)
 
     # Random solutions are complete...
-    assert_equal(sol.num_clients(), data.num_clients)
+    assert_equal(sol.num_clients(), prize_collecting.num_clients)
 
-    ls = LocalSearch(data, rng, compute_neighbours(data))
-    ls.add_node_operator(Exchange10(data))  # relocate
-    ls.add_node_operator(Exchange11(data))  # swap
+    neighbours = compute_neighbours(prize_collecting)
+    ls = LocalSearch(prize_collecting, rng, neighbours)
+    ls.add_node_operator(Exchange10(prize_collecting))  # relocate
+    ls.add_node_operator(Exchange11(prize_collecting))  # swap
 
     improved = ls.search(sol, cost_evaluator)
     improved_cost = cost_evaluator.penalised_cost(improved)
@@ -195,16 +200,19 @@ def test_prize_collecting():
     assert_(improved_cost < sol_cost)
 
 
-def test_cpp_shuffle_results_in_different_solution():
-    data = read("data/RC208.txt", "solomon", round_func="trunc")
+def test_cpp_shuffle_results_in_different_solution(rc208):
+    """
+    Tests that calling shuffle changes the evaluation order, which can well
+    result in different solutions generated from the same initial solution.
+    """
     rng = RandomNumberGenerator(seed=42)
 
-    ls = cpp_LocalSearch(data, compute_neighbours(data))
-    ls.add_node_operator(Exchange10(data))
-    ls.add_node_operator(Exchange11(data))
+    ls = cpp_LocalSearch(rc208, compute_neighbours(rc208))
+    ls.add_node_operator(Exchange10(rc208))
+    ls.add_node_operator(Exchange11(rc208))
 
     cost_evaluator = CostEvaluator(1, 1)
-    sol = Solution.make_random(data, rng)
+    sol = Solution.make_random(rc208, rng)
 
     # LocalSearch::search is deterministic, so two calls with the same base
     # solution should result in the same improved solution.
@@ -219,50 +227,54 @@ def test_cpp_shuffle_results_in_different_solution():
     assert_(improved3 != improved1)
 
 
-def test_route_vehicle_types_are_preserved_for_locally_optimal_solutions():
-    # This test tests that we will preserve vehicle types
-    data = read("data/RC208.txt", "solomon", round_func="trunc")
+def test_vehicle_types_are_preserved_for_locally_optimal_solutions(rc208):
+    """
+    Tests that a solution that is already locally optimal returns the same
+    solution, particularly w.r.t. the underlying vehicles. This exercises an
+    issue where loading the solution in the local search did not preserve the
+    vehicle types.
+    """
     rng = RandomNumberGenerator(seed=42)
+    neighbours = compute_neighbours(rc208)
 
-    neighbours = compute_neighbours(data)
-    ls = cpp_LocalSearch(data, neighbours)
-    ls.add_node_operator(Exchange10(data))
-    ls.add_node_operator(Exchange11(data))
+    ls = cpp_LocalSearch(rc208, neighbours)
+    ls.add_node_operator(Exchange10(rc208))
+    ls.add_node_operator(Exchange11(rc208))
 
     cost_evaluator = CostEvaluator(1, 1)
-    sol = Solution.make_random(data, rng)
+    sol = Solution.make_random(rc208, rng)
 
-    # LocalSearch::search is deterministic, so two calls with the same base
-    # solution should result in the same improved solution.
     improved = ls.search(sol, cost_evaluator)
 
-    # Now make the instance heterogeneous and update the local search
-    data = make_heterogeneous(
-        data, [VehicleType(1000, 25), VehicleType(1000, 25)]
+    # Now make the instance heterogeneous and update the local search.
+    data = rc208.replace(
+        vehicle_types=[VehicleType(1000, 25), VehicleType(1000, 25)]
     )
+
     ls = cpp_LocalSearch(data, neighbours)
     ls.add_node_operator(Exchange10(data))
     ls.add_node_operator(Exchange11(data))
 
-    # Update the improved (locally optimal) solution with vehicles of type 1
+    # Update the improved (locally optimal) solution with vehicles of type 1.
     routes = [Route(data, r.visits(), 1) for r in improved.get_routes()]
     improved = Solution(data, routes)
 
     # Doing the search should not find any further improvements thus not change
-    # the solution, especially not change the vehicle types
+    # the solution.
     further_improved = ls.search(improved, cost_evaluator)
     assert_equal(further_improved, improved)
 
 
-def test_bugfix_vehicle_type_offsets():
+def test_bugfix_vehicle_type_offsets(ok_small):
     """
     See https://github.com/PyVRP/PyVRP/pull/292 for details. This exercises a
     fix to a bug that would crash local search due to an incorrect internal
     mapping of vehicle types to route indices if the next vehicle type had
     more vehicles than the previous.
     """
-    data = read("data/OkSmall.txt")
-    data = make_heterogeneous(data, [VehicleType(10, 1), VehicleType(10, 2)])
+    data = ok_small.replace(
+        vehicle_types=[VehicleType(10, 1), VehicleType(10, 2)]
+    )
 
     ls = cpp_LocalSearch(data, compute_neighbours(data))
     ls.add_node_operator(Exchange10(data))
@@ -278,16 +290,19 @@ def test_bugfix_vehicle_type_offsets():
     assert_(improved_cost <= current_cost)
 
 
-def test_intensify_overlap_tolerance():
-    data = read("data/RC208.txt", "solomon", round_func="trunc")
+def test_intensify_overlap_tolerance(rc208):
+    """
+    Tests that the local search's intensifying route operators respect the
+    route overlap tolerance argument.
+    """
     rng = RandomNumberGenerator(seed=42)
 
-    neighbours = compute_neighbours(data)
-    ls = LocalSearch(data, rng, neighbours)
-    ls.add_route_operator(RelocateStar(data))
+    neighbours = compute_neighbours(rc208)
+    ls = LocalSearch(rc208, rng, neighbours)
+    ls.add_route_operator(RelocateStar(rc208))
 
     cost_eval = CostEvaluator(1, 1)
-    sol = Solution.make_random(data, rng)
+    sol = Solution.make_random(rc208, rng)
 
     # Overlap tolerance is zero, so no routes should have overlap and thus
     # no intensification should take place.
@@ -302,49 +317,59 @@ def test_intensify_overlap_tolerance():
 
 
 @mark.parametrize("tol", [-1.0, -0.01, 1.01, 10.9, 1000])
-def test_intensify_overlap_tolerance_raises_outside_unit_interval(tol):
-    data = read("data/RC208.txt", "solomon", round_func="trunc")
+def test_intensify_overlap_tolerance_raises_outside_unit_interval(rc208, tol):
+    """
+    Tests that calling ``intensify()`` raises when the overlap tolerance
+    argument is not in [0, 1].
+    """
     rng = RandomNumberGenerator(seed=42)
 
-    neighbours = compute_neighbours(data)
-    ls = LocalSearch(data, rng, neighbours)
-    ls.add_route_operator(RelocateStar(data))
+    neighbours = compute_neighbours(rc208)
+    ls = LocalSearch(rc208, rng, neighbours)
+    ls.add_route_operator(RelocateStar(rc208))
 
     cost_eval = CostEvaluator(1, 1)
-    sol = Solution.make_random(data, rng)
+    sol = Solution.make_random(rc208, rng)
 
     with assert_raises(RuntimeError):  # each tolerance value is outside [0, 1]
         ls.intensify(sol, cost_eval, overlap_tolerance=tol)
 
 
-def test_no_op_results_in_same_solution():
-    data = read("data/OkSmall.txt")
+def test_no_op_results_in_same_solution(ok_small):
+    """
+    Tests that calling local search without first adding node or route
+    operators is a no-op, and returns the same solution as the one that was
+    given to it.
+    """
     rng = RandomNumberGenerator(seed=42)
 
     cost_eval = CostEvaluator(1, 1)
-    sol = Solution.make_random(data, rng)
+    sol = Solution.make_random(ok_small, rng)
 
     # Empty local search does not actually search anything, so it should return
     # the exact same solution as what was passed in.
-    ls = LocalSearch(data, rng, compute_neighbours(data))
+    ls = LocalSearch(ok_small, rng, compute_neighbours(ok_small))
     assert_equal(ls(sol, cost_eval), sol)
     assert_equal(ls.search(sol, cost_eval), sol)
     assert_equal(ls.intensify(sol, cost_eval), sol)
 
 
-def test_intensify_can_improve_solution_further():
-    data = read("data/RC208.txt", "solomon", round_func="trunc")
+def test_intensify_can_improve_solution_further(rc208):
+    """
+    Tests that ``intensify()`` improves a solution further once ``search()`` is
+    stuck.
+    """
     rng = RandomNumberGenerator(seed=11)
 
-    ls = LocalSearch(data, rng, compute_neighbours(data))
-    ls.add_node_operator(Exchange11(data))
-    ls.add_route_operator(SwapStar(data))
+    ls = LocalSearch(rc208, rng, compute_neighbours(rc208))
+    ls.add_node_operator(Exchange11(rc208))
+    ls.add_route_operator(SwapStar(rc208))
 
     cost_eval = CostEvaluator(1, 1)
 
     # The following solution is locally optimal w.r.t. the node operators. This
     # solution cannot be improved further by repeated calls to ``search()``.
-    search_opt = ls.search(Solution.make_random(data, rng), cost_eval)
+    search_opt = ls.search(Solution.make_random(rc208, rng), cost_eval)
     search_cost = cost_eval.penalised_cost(search_opt)
 
     # But it can be improved further using the intensifying route operators,
@@ -352,7 +377,6 @@ def test_intensify_can_improve_solution_further():
     intensify_opt = ls.intensify(search_opt, cost_eval)
     intensify_cost = cost_eval.penalised_cost(intensify_opt)
 
-    print(search_cost, intensify_cost)
     assert_(intensify_cost < search_cost)
 
     # Both solutions are locally optimal. ``search_opt`` w.r.t. to the node
@@ -364,15 +388,60 @@ def test_intensify_can_improve_solution_further():
         assert_equal(ls.intensify(intensify_opt, cost_eval), intensify_opt)
 
 
-def test_local_search_raises_for_incomplete_solutions():
-    data = read("data/OkSmallPrizes.txt")
+def test_local_search_completes_incomplete_solutions(ok_small_prizes):
+    """
+    Tests that the local search object improve solutions that are incomplete,
+    and returns a completed solution. Passing an incomplete solution should
+    return a completed solution after search.
+    """
     rng = RandomNumberGenerator(seed=42)
+
+    ls = LocalSearch(ok_small_prizes, rng, compute_neighbours(ok_small_prizes))
+    ls.add_node_operator(Exchange10(ok_small_prizes))
+
+    cost_eval = CostEvaluator(1, 1)
+    sol = Solution(ok_small_prizes, [[2], [3, 4]])
+    assert_(not sol.is_complete())  # 1 is required but not visited
+
+    new_sol = ls.search(sol, cost_eval)
+    assert_(new_sol.is_complete())
+
+
+def test_local_search_does_not_remove_required_clients():
+    """
+    Tests that the local search object does not remove required clients, even
+    when that might result in a significant cost improvement.
+    """
+    rng = RandomNumberGenerator(seed=42)
+    data = ProblemData(
+        clients=[
+            Client(x=0, y=0),
+            # This client cannot be removed, even though it causes significant
+            # load violations.
+            Client(x=1, y=1, demand=100, required=True),
+            # This client can be removed, and should be , because the prize is
+            # not worth the detour.
+            Client(x=2, y=2, prize=0, required=False),
+        ],
+        vehicle_types=[VehicleType(50, 1)],
+        distance_matrix=np.full((3, 3), fill_value=10),
+        duration_matrix=np.zeros((3, 3), dtype=int),
+    )
 
     ls = LocalSearch(data, rng, compute_neighbours(data))
     ls.add_node_operator(Exchange10(data))
 
-    cost_eval = CostEvaluator(1, 1)
-    sol = Solution(data, [[2], [3, 4]])  # 1 is required but not visited
+    sol = Solution(data, [[1, 2]])
+    assert_(sol.is_complete())
 
-    with assert_raises(RuntimeError):
-        ls.search(sol, cost_eval)
+    # Test that the improved solution contains the first client, but removes
+    # the second. The first client is required, so could not be removed, but
+    # the could and that is an improving move.
+    cost_eval = CostEvaluator(100, 100)
+    new_sol = ls.search(sol, cost_eval)
+    assert_equal(new_sol.num_clients(), 1)
+    assert_(new_sol.is_complete())
+
+    sol_cost = cost_eval.penalised_cost(sol)
+    new_cost = cost_eval.penalised_cost(new_sol)
+    assert_(new_cost < sol_cost)

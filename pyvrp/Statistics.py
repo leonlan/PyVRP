@@ -1,13 +1,13 @@
 import csv
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from math import nan
 from pathlib import Path
 from statistics import fmean
 from time import perf_counter
 from typing import List, Union
 
-from .Population import Population, SubPopulation
-from ._pyvrp import CostEvaluator
+from pyvrp.Population import Population, SubPopulation
+from pyvrp._pyvrp import CostEvaluator
 
 _FEAS_CSV_PREFIX = "feas_"
 _INFEAS_CSV_PREFIX = "infeas_"
@@ -25,8 +25,22 @@ class _Datum:
     avg_cost: float
     avg_num_routes: float
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _Datum):
+            return False
 
-@dataclass
+        if self.size == other.size == 0:  # shortcut to avoid comparing NaN
+            return True
+
+        return (
+            self.size == other.size
+            and self.avg_diversity == other.avg_diversity
+            and self.best_cost == other.best_cost
+            and self.avg_cost == other.avg_cost
+            and self.avg_num_routes == other.avg_num_routes
+        )
+
+
 class Statistics:
     """
     The Statistics object tracks various (population-level) statistics of
@@ -34,13 +48,27 @@ class Statistics:
     performance.
     """
 
-    runtimes: List[float] = field(default_factory=list)
-    num_iterations: int = 0
-    feas_stats: List[_Datum] = field(default_factory=list)
-    infeas_stats: List[_Datum] = field(default_factory=list)
+    runtimes: List[float]
+    num_iterations: int
+    feas_stats: List[_Datum]
+    infeas_stats: List[_Datum]
 
-    def __post_init__(self):
+    def __init__(self):
+        self.runtimes = []
+        self.num_iterations = 0
+        self.feas_stats = []
+        self.infeas_stats = []
+
         self._clock = perf_counter()
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, Statistics)
+            and self.runtimes == other.runtimes
+            and self.num_iterations == other.num_iterations
+            and self.feas_stats == other.feas_stats
+            and self.infeas_stats == other.infeas_stats
+        )
 
     def collect_from(
         self, population: Population, cost_evaluator: CostEvaluator

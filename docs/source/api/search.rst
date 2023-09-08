@@ -2,8 +2,8 @@
    :synopsis: Search
 
 
-Search
-======
+Search methods
+==============
 
 The :mod:`pyvrp.search` module contains classes and search methods responsible for improving a newly created offspring solution.
 This happens just after :mod:`pyvrp.crossover` is performed by the :class:`~pyvrp.GeneticAlgorithm.GeneticAlgorithm`. 
@@ -15,11 +15,13 @@ All search methods implement the :class:`SearchMethod` protocol.
 
    .. autoclass:: SearchMethod
       :members:
+      :special-members: __call___
 
 .. automodule:: pyvrp.search.LocalSearch
 
    .. autoclass:: LocalSearch
       :members:
+      :special-members: __call___
 
 .. automodule:: pyvrp.search.neighbourhood
    :members:
@@ -40,40 +42,39 @@ As a convenience, the :mod:`pyvrp.search` module makes all these operators avail
 .. automodule:: pyvrp.search._search
 
    .. autoclass:: NodeOperator
-      :members:
 
    .. autoclass:: Exchange10
-      :members:
+      :exclude-members: evaluate, apply
 
    .. autoclass:: Exchange20
-      :members:
+      :exclude-members: evaluate, apply
 
    .. autoclass:: Exchange30
-      :members:
+      :exclude-members: evaluate, apply
    
    .. autoclass:: Exchange11
-      :members:
+      :exclude-members: evaluate, apply
 
    .. autoclass:: Exchange21
-      :members:
+      :exclude-members: evaluate, apply
 
    .. autoclass:: Exchange31
-      :members:
+      :exclude-members: evaluate, apply
    
    .. autoclass:: Exchange22
-      :members:
+      :exclude-members: evaluate, apply
 
    .. autoclass:: Exchange32
-      :members:
+      :exclude-members: evaluate, apply
    
    .. autoclass:: Exchange33
-      :members:
+      :exclude-members: evaluate, apply
 
    .. autoclass:: MoveTwoClientsReversed
-      :members:
+      :exclude-members: evaluate, apply
 
    .. autoclass:: TwoOpt
-      :members:
+      :exclude-members: evaluate, apply
 
 
 Route operators
@@ -92,10 +93,12 @@ As a convenience, the :mod:`pyvrp.search` module makes all these operators avail
    :noindex:
 
    .. autoclass:: RouteOperator
-      :members:
 
    .. autoclass:: RelocateStar
-      :members:
+      :exclude-members: evaluate, apply
+
+   .. autoclass:: SwapRoutes
+      :exclude-members: evaluate, apply
 
    .. autoclass:: SwapStar
-      :members:
+      :exclude-members: evaluate, apply

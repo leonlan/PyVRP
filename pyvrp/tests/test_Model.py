@@ -1,14 +1,22 @@
-from numpy.testing import assert_, assert_equal, assert_raises, assert_warns
-from pytest import mark
+from numpy.testing import (
+    assert_,
+    assert_allclose,
+    assert_equal,
+    assert_raises,
+    assert_warns,
+)
 
 from pyvrp import Model
 from pyvrp.constants import MAX_USER_VALUE, MAX_VALUE
 from pyvrp.exceptions import EmptySolutionWarning, ScalingWarning
 from pyvrp.stop import MaxIterations
-from pyvrp.tests.helpers import read
 
 
 def test_model_data():
+    """
+    Tests that calling the ``data()`` member on the model returns a data
+    instance representing the added data.
+    """
     model = Model()
 
     # Let's add some data: a single client, and edges from/to the depot.
@@ -18,12 +26,17 @@ def test_model_data():
     model.add_edge(client, depot, 1, 1)
     model.add_vehicle_type(capacity=1, num_available=1)
 
-    # The model should now have one client.
     data = model.data()
     assert_equal(data.num_clients, 1)
+    assert_equal(data.num_vehicle_types, 1)
+    assert_equal(data.num_vehicles, 1)
 
 
 def test_add_depot_raises_more_than_one_depot():
+    """
+    PyVRP does not currently support VRPs with multiple depots. Adding more
+    than one depot should raise.
+    """
     model = Model()
     model.add_depot(0, 0)  # first depot should be OK
 
@@ -32,6 +45,10 @@ def test_add_depot_raises_more_than_one_depot():
 
 
 def test_add_edge_raises_negative_distance_or_duration():
+    """
+    Negative distances or durations are not understood. Attempting to add
+    such edges should raise an error.
+    """
     model = Model()
     depot = model.add_depot(0, 0)
     client = model.add_client(0, 1)
@@ -45,21 +62,11 @@ def test_add_edge_raises_negative_distance_or_duration():
         model.add_edge(client, depot, distance=0, duration=-1)
 
 
-@mark.parametrize(
-    ("number", "capacity"),
-    [
-        (0, 1),  # zero vehicles is not OK (but zero capacity is)
-        (-1, 1),  # negative vehicles is not OK
-        (1, -1),  # negative capacity is not OK
-    ],
-)
-def test_add_vehicle_type_raises_negative_number_or_capacity(number, capacity):
-    model = Model()
-    with assert_raises(ValueError):
-        model.add_vehicle_type(capacity=capacity, num_available=number)
-
-
 def test_add_client_attributes():
+    """
+    Smoke test that checks, for a single client, that the model adds a client
+    whose attributes are the same as what was passed in.
+    """
     model = Model()
     client = model.add_client(
         x=1,
@@ -87,6 +94,10 @@ def test_add_client_attributes():
 
 
 def test_add_depot_attributes():
+    """
+    Smoke test that checks the depot attributes are the same as what was passed
+    in.
+    """
     model = Model()
     depot = model.add_depot(x=1, y=0, tw_early=3, tw_late=5)
 
@@ -101,6 +112,9 @@ def test_add_depot_attributes():
 
 
 def test_add_edge():
+    """
+    Smoke test that checks edge attributes are the same as what was passed in.
+    """
     model = Model()
     depot = model.add_depot(0, 0)
     client = model.add_client(0, 1)
@@ -113,14 +127,30 @@ def test_add_edge():
 
 
 def test_add_vehicle_type():
+    """
+    Smoke test that checks vehicle type attributes are the same as what was
+    passed in.
+    """
     model = Model()
-    vehicle_type = model.add_vehicle_type(num_available=10, capacity=998)
+    vehicle_type = model.add_vehicle_type(
+        num_available=10,
+        capacity=998,
+        fixed_cost=1_001,
+        tw_early=17,
+        tw_late=19,
+    )
 
     assert_equal(vehicle_type.num_available, 10)
-    assert_equal(vehicle_type.capacity, 998)
+    assert_allclose(vehicle_type.capacity, 998)
+    assert_allclose(vehicle_type.fixed_cost, 1_001)
+    assert_allclose(vehicle_type.tw_early, 17)
+    assert_allclose(vehicle_type.tw_late, 19)
 
 
 def test_get_locations():
+    """
+    Checks that the ``locations`` property returns the depot and all clients.
+    """
     model = Model()
     client1 = model.add_client(0, 1)
     depot = model.add_depot(0, 0)
@@ -133,6 +163,9 @@ def test_get_locations():
 
 
 def test_get_vehicle_types():
+    """
+    Tests the ``vehicle_types`` property.
+    """
     model = Model()
     vehicle_type1 = model.add_vehicle_type(1, 2)
     vehicle_type2 = model.add_vehicle_type(1, 3)
@@ -142,43 +175,50 @@ def test_get_vehicle_types():
     assert_equal(model.vehicle_types[1], vehicle_type2)
 
 
-def test_from_data():
-    read_data = read("data/E-n22-k4.txt", round_func="dimacs")
-    model = Model.from_data(read_data)
+def test_from_data(small_cvrp):
+    """
+    Tests that initialising the model from a data instance results in a valid
+    model representation of that data instance.
+    """
+    model = Model.from_data(small_cvrp)
     model_data = model.data()
 
     # We can first check if the overall problem dimension numbers agree.
-    assert_equal(model_data.num_clients, read_data.num_clients)
-    assert_equal(model_data.num_vehicles, read_data.num_vehicles)
+    assert_equal(model_data.num_clients, small_cvrp.num_clients)
+    assert_equal(model_data.num_vehicles, small_cvrp.num_vehicles)
     assert_equal(
-        model_data.vehicle_type(0).capacity, read_data.vehicle_type(0).capacity
+        model_data.vehicle_type(0).capacity,
+        small_cvrp.vehicle_type(0).capacity,
     )
 
     # It's a bit cumbersome to compare the whole matrices, so we use a few
     # sample traces from the distance and duration matrices instead.
-    assert_equal(model_data.dist(3, 4), read_data.dist(3, 4))
-    assert_equal(model_data.duration(2, 1), read_data.duration(2, 1))
+    assert_equal(model_data.dist(3, 4), small_cvrp.dist(3, 4))
+    assert_equal(model_data.duration(2, 1), small_cvrp.duration(2, 1))
 
 
-def test_from_data_and_solve():
-    # Solve the small E-n22-k4 instance using the from_data constructor.
-    data = read("data/E-n22-k4.txt", round_func="dimacs")
-    model = Model.from_data(data)
+def test_from_data_and_solve(small_cvrp, ok_small):
+    """
+    Tests that solving a model initialised from a data instance finds the
+    correct (known) solutions.
+    """
+    model = Model.from_data(small_cvrp)
     res = model.solve(stop=MaxIterations(100), seed=0)
     assert_equal(res.cost(), 3_743)
     assert_(res.is_feasible())
 
-    data = read("data/OkSmall.txt")
-    model = Model.from_data(data)
+    model = Model.from_data(ok_small)
     res = model.solve(stop=MaxIterations(100), seed=0)
     assert_equal(res.cost(), 9_155)
     assert_(res.is_feasible())
 
 
-def test_model_and_solve():
-    # Solve the small OkSmall instance using the from_data constructor.
-    data = read("data/OkSmall.txt")
-    model = Model.from_data(data)
+def test_model_and_solve(ok_small):
+    """
+    Tests that solving a model initialised using the modelling interface
+    finds the correct (known) solutions.
+    """
+    model = Model.from_data(ok_small)
     res = model.solve(stop=MaxIterations(100), seed=0)
     assert_equal(res.cost(), 9_155)
     assert_(res.is_feasible())
@@ -218,11 +258,17 @@ def test_model_and_solve():
             model.add_edge(other, client, to_client, to_client)
 
     res = model.solve(stop=MaxIterations(100), seed=0)
-    assert_equal(res.cost(), 9_155)
+
     assert_(res.is_feasible())
+    assert_equal(res.cost(), 9_155)
 
 
 def test_partial_distance_duration_matrix():
+    """
+    Tests that adding a full distance or duration matrix is not required. Any
+    "missing" arcs are given large default values, ensuring they are never
+    used.
+    """
     model = Model()
     depot = model.add_depot(0, 0)
     clients = [model.add_client(0, 1), model.add_client(1, 0)]
@@ -248,6 +294,12 @@ def test_partial_distance_duration_matrix():
 
 
 def test_data_warns_about_scaling_issues(recwarn):
+    """
+    Tests that the modelling interface warns when an edge is added whose
+    distance or duration values are too large: in that case, PyVRP might not be
+    able to detect missing edges. This situation is likely caused by scaling
+    issues, so a warning is appropriate.
+    """
     model = Model()
     model.add_vehicle_type(capacity=0, num_available=1)
     depot = model.add_depot(0, 0)
@@ -256,13 +308,15 @@ def test_data_warns_about_scaling_issues(recwarn):
     # Normal distance sizes; should all be OK.
     for distance in [1, 10, 100, 1_000, 10_000, 100_000, MAX_USER_VALUE]:
         model.add_edge(client, depot, distance=distance)
-        model.data()
         assert_equal(len(recwarn), 0)
 
-    # But a value exceeding the maximum user value is not OK. This should warn.
-    model.add_edge(depot, client, distance=MAX_USER_VALUE + 1)
+    # But a value exceeding the maximum user value is not OK. This should warn
+    # (both for distance and/or duration).
     with assert_warns(ScalingWarning):
-        model.data()
+        model.add_edge(depot, client, distance=MAX_USER_VALUE + 1)
+
+    with assert_warns(ScalingWarning):
+        model.add_edge(depot, client, distance=0, duration=MAX_USER_VALUE + 1)
 
 
 def test_model_solves_instance_with_zero_or_one_clients():
@@ -289,3 +343,71 @@ def test_model_solves_instance_with_zero_or_one_clients():
     res = m.solve(stop=MaxIterations(1))
     solution = [r.visits() for r in res.best.get_routes()]
     assert_equal(solution, [[1]])
+
+
+def test_model_solves_small_instance_with_fixed_costs():
+    """
+    High-level test that creates and solves a small instance with vehicle fixed
+    costs, to see if the model (and thus the underlying solution algorithm)
+    can handle that. This test exercises the bug identified in issue #380.
+    Before fixing this bug, the solver would hang on this instance.
+    """
+    m = Model()
+
+    for idx in range(2):
+        m.add_vehicle_type(capacity=0, num_available=5, fixed_cost=10)
+
+    m.add_depot(x=0, y=0, tw_early=0, tw_late=40)
+
+    for idx in range(5):
+        m.add_client(x=idx, y=idx, service_duration=1, tw_early=0, tw_late=20)
+
+    for frm in m.locations:
+        for to in m.locations:
+            m.add_edge(frm, to, distance=0, duration=5)
+
+    res = m.solve(stop=MaxIterations(100))
+    assert_(res.is_feasible())
+
+
+def test_model_solves_small_instance_with_shift_durations():
+    """
+    High-level test that creates and solves a small instance with shift
+    durations, to see if the model (and thus the underlying solution algorithm)
+    can handle that.
+    """
+    m = Model()
+
+    # Two vehicle types with different shift time windows: the first has a
+    # shift time window of [0, 15], the second of [5, 25]. There are four
+    # vehicles in total, two for each vehicle type.
+    for tw_early, tw_late in [(0, 15), (5, 25)]:
+        m.add_vehicle_type(
+            capacity=0,
+            num_available=2,
+            tw_early=tw_early,
+            tw_late=tw_late,
+        )
+
+    m.add_depot(x=0, y=0, tw_early=0, tw_late=40)
+
+    for idx in range(5):
+        # Vehicles of the first type can visit two clients before having to
+        # return to the depot. The second vehicle type can be used to visit
+        # a single client before having to return to the depot. So we need
+        # at least three routes.
+        m.add_client(
+            x=idx,
+            y=idx,
+            service_duration=1,
+            tw_early=0,
+            tw_late=20,
+        )
+
+    for frm in m.locations:
+        for to in m.locations:
+            m.add_edge(frm, to, distance=0, duration=5)
+
+    res = m.solve(stop=MaxIterations(100))
+    assert_(res.is_feasible())
+    assert_(res.best.num_routes() > 2)

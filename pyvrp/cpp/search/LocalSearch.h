@@ -18,7 +18,7 @@ class LocalSearch
 {
     using NodeOp = LocalSearchOperator<Route::Node>;
     using RouteOp = LocalSearchOperator<Route>;
-    using Neighbours = std::vector<std::vector<int>>;
+    using Neighbours = std::vector<std::vector<size_t>>;
 
     ProblemData const &data;
 
@@ -26,8 +26,8 @@ class LocalSearch
     // numClients + 1, but nothing stored for the depot!)
     Neighbours neighbours;
 
-    std::vector<int> orderNodes;   // node order used by LocalSearch::search
-    std::vector<int> orderRoutes;  // route order used by LocalSearch::intensify
+    std::vector<size_t> orderNodes;   // node order used by LS::search
+    std::vector<size_t> orderRoutes;  // route order used by LS::intensify
 
     std::vector<int> lastModified;  // tracks when routes were last modified
 
@@ -54,16 +54,16 @@ class LocalSearch
     // Tests the route pair (U, V).
     bool applyRouteOps(Route *U, Route *V, CostEvaluator const &costEvaluator);
 
+    // Tests moves involving empty routes.
+    void applyEmptyRouteMoves(Route::Node *U,
+                              CostEvaluator const &costEvaluator);
+
+    // Tests moves involving missing or optional clients.
+    void applyOptionalClientMoves(Route::Node *U,
+                                  CostEvaluator const &costEvaluator);
+
     // Updates solution state after an improving local search move.
     void update(Route *U, Route *V);
-
-    // Test inserting U after V. Called if U is not currently in the solution.
-    void maybeInsert(Route::Node *U,
-                     Route::Node *V,
-                     CostEvaluator const &costEvaluator);
-
-    // Test removing U from the solution. Called when U can be removed.
-    void maybeRemove(Route::Node *U, CostEvaluator const &costEvaluator);
 
     // Performs search on the currently loaded solution.
     void search(CostEvaluator const &costEvaluator);

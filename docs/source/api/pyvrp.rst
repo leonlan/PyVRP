@@ -45,7 +45,7 @@ This object can be used to obtain the best observed solution, and detailed runti
       :members:
 
    .. autoclass:: Population
-      :members:  
+      :members:
       :special-members: __iter__, __len__
 
 .. automodule:: pyvrp.read
@@ -76,12 +76,17 @@ This object can be used to obtain the best observed solution, and detailed runti
 
    .. autoclass:: Client
       :members:
-   
+
    .. autoclass:: VehicleType
       :members:
 
    .. autoclass:: ProblemData
       :members:
+
+   .. autoclass:: DynamicBitset
+      :members:
+      :special-members: __and__, __or__, __xor__, __getitem__, __setitem__,
+                        __invert__, __len__, __eq__
 
    .. autoclass:: RandomNumberGenerator
       :members:

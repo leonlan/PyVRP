@@ -4,6 +4,7 @@ project(
     version: run_command('poetry', 'version', '--short', check: true).stdout(),
     default_options: [
         'cpp_std=c++20',
+        'b_ndebug=if-release',  # disables asserts in release builds
         'b_lto=true',  # sets -flto
         'werror=true',  # sets -Werror
         'warning_level=3',  # level 3 sets -Wextra and -Wpedantic
@@ -38,7 +39,7 @@ endif
 # installation directories here, as a shorthand.
 INST_DIR = 'pyvrp'
 SRC_DIR = 'pyvrp' / 'cpp'
-INCLUDES = [include_directories(SRC_DIR)]
+INCLUDES = include_directories(SRC_DIR)
 
 libcommon = static_library(
     'common',
@@ -51,13 +52,15 @@ libcommon = static_library(
         SRC_DIR / 'SubPopulation.cpp',
         SRC_DIR / 'TimeWindowSegment.cpp',
         SRC_DIR / 'crossover' / 'selective_route_exchange.cpp',
-        SRC_DIR / 'crossover' / 'crossover.cpp',
         SRC_DIR / 'diversity' / 'broken_pairs_distance.cpp',
+        SRC_DIR / 'repair' / 'greedy_repair.cpp',
         SRC_DIR / 'search' / 'LocalSearch.cpp',
         SRC_DIR / 'search' / 'Route.cpp',
         SRC_DIR / 'search' / 'MoveTwoClientsReversed.cpp',
+        SRC_DIR / 'search' / 'primitives.cpp',
         SRC_DIR / 'search' / 'TwoOpt.cpp',
         SRC_DIR / 'search' / 'RelocateStar.cpp',
+        SRC_DIR / 'search' / 'SwapRoutes.cpp',
         SRC_DIR / 'search' / 'SwapStar.cpp',
     ],
     include_directories: INCLUDES,
@@ -74,6 +77,7 @@ extensions = [
     ['pyvrp', ''],
     ['crossover', 'crossover'],
     ['diversity', 'diversity'],
+    ['repair', 'repair'],
     ['search', 'search'],
 ]
 

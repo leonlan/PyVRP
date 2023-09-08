@@ -29,19 +29,56 @@ ProblemData::Client::Client(Coordinate x,
       required(required)
 {
     if (demand < 0)
-        throw std::invalid_argument("demand must be >= 0");
+        throw std::invalid_argument("demand must be >= 0.");
 
     if (serviceDuration < 0)
-        throw std::invalid_argument("service_duration must be >= 0");
+        throw std::invalid_argument("service_duration must be >= 0.");
 
     if (twEarly > twLate)
-        throw std::invalid_argument("tw_early must be <= tw_late");
+        throw std::invalid_argument("tw_early must be <= tw_late.");
+
+    if (twEarly < 0)
+        throw std::invalid_argument("tw_early must be >= 0.");
 
     if (releaseTime > dispatchTime)
         throw std::invalid_argument("release_time must be <= dispatch_time");
 
     if (prize < 0)
-        throw std::invalid_argument("prize must be >= 0");
+        throw std::invalid_argument("prize must be >= 0.");
+}
+
+ProblemData::VehicleType::VehicleType(Load capacity,
+                                      size_t numAvailable,
+                                      Cost fixedCost,
+                                      std::optional<Duration> twEarly,
+                                      std::optional<Duration> twLate)
+    : capacity(capacity),
+      numAvailable(numAvailable),
+      fixedCost(fixedCost),
+      twEarly(twEarly),
+      twLate(twLate)
+{
+    if (capacity < 0)
+        throw std::invalid_argument("capacity must be >= 0.");
+
+    if (numAvailable == 0)
+        throw std::invalid_argument("num_available must be > 0.");
+
+    if (fixedCost < 0)
+        throw std::invalid_argument("fixed_cost must be >= 0.");
+
+    if ((twEarly && !twLate) || (!twEarly && twLate))
+        throw std::invalid_argument("Must pass either no shift time window,"
+                                    " or both a start and end.");
+
+    if (twEarly && twLate)
+    {
+        if (twEarly > twLate)
+            throw std::invalid_argument("tw_early must be <= tw_late.");
+
+        if (twEarly < 0)
+            throw std::invalid_argument("tw_early must be >= 0.");
+    }
 }
 
 std::pair<double, double> const &ProblemData::centroid() const
@@ -49,15 +86,25 @@ std::pair<double, double> const &ProblemData::centroid() const
     return centroid_;
 }
 
-Matrix<Distance> const &ProblemData::distanceMatrix() const { return dist_; }
-
-Matrix<Duration> const &ProblemData::durationMatrix() const { return dur_; }
-
 size_t ProblemData::numClients() const { return numClients_; }
 
 size_t ProblemData::numVehicleTypes() const { return numVehicleTypes_; }
 
 size_t ProblemData::numVehicles() const { return numVehicles_; }
+
+ProblemData
+ProblemData::replace(std::optional<std::vector<Client>> &clients,
+                     std::optional<std::vector<VehicleType>> &vehicleTypes,
+                     std::optional<Matrix<Distance>> &distMat,
+                     std::optional<Matrix<Duration>> &durMat)
+{
+    auto const newClients = clients.value_or(clients_);
+    auto const newVehicleTypes = vehicleTypes.value_or(vehicleTypes_);
+    auto const newDistMat = distMat.value_or(dist_);
+    auto const newDurMat = durMat.value_or(dur_);
+
+    return ProblemData(newClients, newVehicleTypes, newDistMat, newDurMat);
+}
 
 ProblemData::ProblemData(std::vector<Client> const &clients,
                          std::vector<VehicleType> const &vehicleTypes,
@@ -77,6 +124,13 @@ ProblemData::ProblemData(std::vector<Client> const &clients,
                                        return sum + type.numAvailable;
                                    }))
 {
+    if (dist_.numRows() != clients.size() || dist_.numCols() != clients.size())
+        throw std::invalid_argument("Distance matrix shape does not match the "
+                                    "number of clients.");
+
+    if (dur_.numRows() != clients.size() || dur_.numCols() != clients.size())
+        throw std::invalid_argument("Duration matrix shape does not match the "
+                                    "number of clients.");
 
     if (clients.size() == 0)  // at least one client (the depot) is required
         throw std::invalid_argument("Clients must not be empty.");

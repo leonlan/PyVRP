@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Optional, Union
 from warnings import warn
 
 import numpy as np
@@ -193,30 +193,33 @@ class Model:
         if distance < 0 or duration < 0:
             raise ValueError("Cannot have negative edge distance or duration.")
 
+        if max(distance, duration) > MAX_USER_VALUE:
+            msg = """
+            The given distance or duration value is very large. This may impact
+            numerical stability. Consider rescaling your input data.
+            """
+            warn(msg, ScalingWarning)
+
         edge = Edge(frm, to, distance, duration)
         self._edges.append(edge)
         return edge
 
     def add_vehicle_type(
-        self, capacity: int, num_available: int
+        self,
+        capacity: int,
+        num_available: int,
+        fixed_cost: int = 0,
+        tw_early: Optional[int] = None,
+        tw_late: Optional[int] = None,
     ) -> VehicleType:
         """
-        Adds a vehicle type with the given number of available vehicles of
-        given capacity to the model. Returns the created vehicle type.
-
-        Raises
-        ------
-        ValueError
-            When the number of available vehicles or capacity is not a positive
-            value.
+        Adds a vehicle type with the given attributes to the model. Returns the
+        created vehicle type.
         """
-        if capacity < 0:
-            raise ValueError("Cannot have negative vehicle capacity.")
+        vehicle_type = VehicleType(
+            capacity, num_available, fixed_cost, tw_early, tw_late
+        )
 
-        if num_available <= 0:
-            raise ValueError("Must have positive number of vehicles.")
-
-        vehicle_type = VehicleType(capacity, num_available)
         self._vehicle_types.append(vehicle_type)
         return vehicle_type
 
@@ -227,16 +230,6 @@ class Model:
         """
         locs = self.locations
         loc2idx = {id(loc): idx for idx, loc in enumerate(locs)}
-
-        if self._edges:
-            max_value = max(max(e.distance, e.duration) for e in self._edges)
-
-            if max_value > MAX_USER_VALUE:
-                msg = """
-                The maximum distance or duration value is very large. This may
-                impact numerical stability. Consider rescaling your input data.
-                """
-                warn(msg, ScalingWarning)
 
         # Default value is a sufficiently large value to make sure any edges
         # not set below are never traversed.
@@ -259,7 +252,7 @@ class Model:
         ----------
         stop
             Stopping criterion to use.
-        seed, optional
+        seed
             Seed value to use for the PRNG, by default 0.
 
         Returns
