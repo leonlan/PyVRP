@@ -282,6 +282,8 @@ public:
      *    tw_early: int = 0,
      *    tw_late: int = np.iinfo(np.int64).max,
      *    service_duration: int = 0,
+     *    capacity: list[int] = [],
+     *    fixed_cost: int = 0,
      *    *,
      *    name: str = "",
      * )
@@ -305,6 +307,13 @@ public:
      * service_duration
      *     Time it takes to e.g. load a vehicle at this depot, at the start of
      *     a trip. Default 0.
+     * capacity
+     *     Capacities of this depot, per load dimension. This capacity is used
+     *     when a vehicle type that starts at this depot services deliveries to
+     *     clients. Default unconstrained.
+     * fixed_cost
+     *     Fixed cost of this depot. This cost is incurred if the solution
+     *     uses at least one vehicle that starts at this depot. Default 0.
      * name
      *     Free-form name field for this depot. Default empty.
      *
@@ -321,6 +330,10 @@ public:
      * service_duration
      *     Time it takes to e.g. load a vehicle at this depot, at the start of
      *     a trip.
+     * capacity
+     *     Capacities of this depot, per load dimension.
+     * fixed_cost
+     *     Fixed cost of this depot.
      * name
      *     Free-form name field for this depot.
      */
@@ -331,13 +344,17 @@ public:
         Duration const serviceDuration;
         Duration const twEarly;  // Depot opening time
         Duration const twLate;   // Depot closing time
-        char const *name;        // Depot name (for reference)
+        std::vector<Load> const capacity;
+        Cost const fixedCost;  // Fixed cost of this depot
+        char const *name;      // Depot name (for reference)
 
         Depot(Coordinate x,
               Coordinate y,
               Duration twEarly = 0,
               Duration twLate = std::numeric_limits<Duration>::max(),
               Duration serviceDuration = 0,
+              std::vector<Load> capacity = {},
+              Cost fixedCost = 0,
               std::string name = "");
 
         bool operator==(Depot const &other) const;

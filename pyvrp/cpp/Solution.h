@@ -55,6 +55,7 @@ class Solution
     Distance excessDistance_ = 0;   // Total excess distance over all routes
     std::vector<Load> excessLoad_;  // Total excess load over all routes
     Cost fixedVehicleCost_ = 0;     // Fixed cost of all used vehicles
+    Cost fixedDepotCost_ = 0;       // Fixed cost of all used depots
     Cost prizes_ = 0;               // Total collected prize value
     Cost uncollectedPrizes_ = 0;    // Total uncollected prize value
     Duration timeWarp_ = 0;         // Total time warp over all routes
@@ -146,7 +147,8 @@ public:
     [[nodiscard]] bool isComplete() const;
 
     /**
-     * Returns whether this solution violates capacity constraints.
+     * Returns whether this solution violates vehicle or depot capacity
+     * constraints.
      */
     [[nodiscard]] bool hasExcessLoad() const;
 
@@ -194,8 +196,8 @@ public:
     [[nodiscard]] Cost durationCost() const;
 
     /**
-     * Aggregate pickup or delivery loads in excess of the vehicle's capacity
-     * of all routes.
+     * Aggregate pickup or delivery loads in excess of vehicle and depot
+     * capacities.
      */
     [[nodiscard]] std::vector<Load> const &excessLoad() const;
 
@@ -209,6 +211,11 @@ public:
      * Returns the fixed vehicle cost of all vehicles used in this solution.
      */
     [[nodiscard]] Cost fixedVehicleCost() const;
+
+    /**
+     * Returns the fixed depot cost of all depots used in this solution.
+     */
+    [[nodiscard]] Cost fixedDepotCost() const;
 
     /**
      * Returns the total collected prize value over all routes.
@@ -268,6 +275,7 @@ public:
              Distance excessDistance,
              std::vector<Load> excessLoad,
              Cost fixedVehicleCost,
+             Cost fixedDepotCost,
              Cost prizes,
              Cost uncollectedPrizes,
              Duration timeWarp,

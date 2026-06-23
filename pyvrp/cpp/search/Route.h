@@ -81,12 +81,12 @@ public:
          */
         size_t size() const;
 
+    public:
         /**
          * Returns whether the proposed route is empty.
          */
         bool empty() const;
 
-    public:
         Proposal(Segments &&...segments);
 
         /**
@@ -107,6 +107,11 @@ public:
          * route.
          */
         std::pair<Cost, Duration> duration() const;
+
+        /**
+         * Returns the load of the proposed route.
+         */
+        Load load(size_t dimension) const;
 
         /**
          * Returns the excess load of the proposed route.
@@ -424,6 +429,11 @@ public:
      * @return The fixed cost of the vehicle servicing this route.
      */
     [[nodiscard]] inline Cost fixedVehicleCost() const;
+
+    /**
+     * Depot fixed costs are solution-level costs, so routes contribute zero.
+     */
+    [[nodiscard]] inline Cost fixedDepotCost() const;
 
     /**
      * @return Total distance travelled on this route.
@@ -921,6 +931,8 @@ size_t Route::endDepot() const { return vehicleType_.endDepot; }
 
 Cost Route::fixedVehicleCost() const { return vehicleType_.fixedCost; }
 
+Cost Route::fixedDepotCost() const { return 0; }
+
 Distance Route::distance() const
 {
     assert(!dirty);
@@ -1162,6 +1174,55 @@ std::pair<Cost, Duration> Route::Proposal<Segments...>::duration() const
     };
 
     return std::apply(fn, detail::reverse(segments_));
+}
+
+template <Segment... Segments>
+Load Route::Proposal<Segments...>::load(size_t dimension) const
+{
+    if (empty())
+        return 0;
+
+    auto const &capacities = route()->capacity();
+    auto const capacity = capacities[dimension];
+
+    auto const fn = [&](auto &&segment, auto &&...args)
+    {
+        auto total = Load{0};
+        auto ls = segment.load(dimension);
+
+        auto const finalise = [&]()
+        {
+            total += ls.load();
+            ls = ls.finalise(capacity);
+        };
+
+        if (segment.endsAtReloadDepot())
+            finalise();
+
+        auto const merge = [&](auto const &self, auto &&other, auto &&...args)
+        {
+            if (other.startsAtReloadDepot())
+                finalise();
+
+            ls = LoadSegment::merge(ls, other.load(dimension));
+
+            if constexpr (sizeof...(args) != 0)
+            {
+                if (other.endsAtReloadDepot() && other.size() > 1)
+                    // Only when the segment contains more than just the depot.
+                    // Checking for size speeds up the common case of a reload
+                    // depot insertion.
+                    finalise();
+
+                self(self, std::forward<decltype(args)>(args)...);
+            }
+        };
+
+        merge(merge, std::forward<decltype(args)>(args)...);
+        return total + ls.load();
+    };
+
+    return std::apply(fn, segments_);
 }
 
 template <Segment... Segments>

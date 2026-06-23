@@ -499,6 +499,88 @@ def test_local_search_removes_useless_reload_depots(ok_small_multiple_trips):
     assert_(str(routes[1]), "2 4")
 
 
+def test_local_search_uses_depot_capacity_delta():
+    """
+    Tests that local search can apply a route-local neutral move that improves
+    the depot capacity excess load.
+    """
+    data = ProblemData(
+        clients=[
+            Client(x=0, y=0, delivery=[4], pickup=[0]),
+            Client(x=0, y=0, delivery=[4], pickup=[0]),
+            Client(x=0, y=0, delivery=[1], pickup=[0]),
+        ],
+        depots=[
+            Depot(x=0, y=0, capacity=[5]),
+            Depot(x=0, y=0, capacity=[100]),
+        ],
+        vehicle_types=[
+            VehicleType(capacity=[10], start_depot=0, end_depot=0),
+            VehicleType(capacity=[10], start_depot=1, end_depot=1),
+        ],
+        distance_matrices=[np.zeros((5, 5), dtype=int)],
+        duration_matrices=[np.zeros((5, 5), dtype=int)],
+    )
+
+    sol = Solution(
+        data,
+        [
+            Route(data, [2, 3], 0),
+            Route(data, [4], 1),
+        ],
+    )
+    assert_equal(sol.excess_load(), [3])
+
+    neighbours = [[], [], [4], [4], [2, 3]]
+    rng = RandomNumberGenerator(seed=42)
+    ls = LocalSearch(data, rng, neighbours)
+    ls.add_node_operator(Exchange10(data))
+
+    cost_eval = CostEvaluator([10], 0, 0)
+    improved = ls.search(sol, cost_eval)
+
+    assert_(cost_eval.penalised_cost(improved) < cost_eval.penalised_cost(sol))
+    assert_equal(improved.excess_load(), [0])
+
+
+def test_local_search_uses_fixed_depot_cost_delta():
+    """
+    Tests that local search can apply a route-local neutral move that makes an
+    expensive depot inactive.
+    """
+    data = ProblemData(
+        clients=[
+            Client(x=0, y=0),
+            Client(x=0, y=0),
+        ],
+        depots=[
+            Depot(x=0, y=0),
+            Depot(x=0, y=0, fixed_cost=50),
+        ],
+        vehicle_types=[
+            VehicleType(start_depot=0, end_depot=0),
+            VehicleType(start_depot=1, end_depot=1),
+        ],
+        distance_matrices=[np.zeros((4, 4), dtype=int)],
+        duration_matrices=[np.zeros((4, 4), dtype=int)],
+    )
+
+    sol = Solution(data, [Route(data, [2], 0), Route(data, [3], 1)])
+    assert_equal(sol.fixed_depot_cost(), 50)
+
+    neighbours = [[], [], [3], [2]]
+    rng = RandomNumberGenerator(seed=42)
+    ls = LocalSearch(data, rng, neighbours)
+    ls.add_node_operator(Exchange10(data))
+
+    cost_eval = CostEvaluator([], 0, 0)
+    improved = ls.search(sol, cost_eval)
+
+    assert_(cost_eval.penalised_cost(improved) < cost_eval.penalised_cost(sol))
+    assert_equal(improved.num_routes(), 1)
+    assert_equal(improved.fixed_depot_cost(), 0)
+
+
 def test_search_statistics(ok_small):
     """
     Tests that the local search's search statistics return meaningful

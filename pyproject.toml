@@ -34,7 +34,7 @@ requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.15.2; python_version < '3.12'",
     "numpy>=1.26.0; python_version >= '3.12'",
-    "matplotlib>=2.2.0",
+    "matplotlib>=2.2.0,<3.11.0",
     "vrplib>=1.4.0",
     "tqdm>=4.64.1",
 ]
@@ -65,7 +65,6 @@ dev = [
     "pytest-codspeed>=2.2.1",
     "pytest-xdist>=3.6.1",
     "pytest-sugar>=1.0.0",
-    "codecov",
 ]
 
 docs = [

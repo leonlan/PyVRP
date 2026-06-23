@@ -5,6 +5,7 @@
 #include <numeric>
 #include <stdexcept>
 
+using pyvrp::Cost;
 using pyvrp::Distance;
 using pyvrp::Duration;
 using pyvrp::Load;
@@ -228,12 +229,16 @@ ProblemData::Depot::Depot(Coordinate x,
                           Duration twEarly,
                           Duration twLate,
                           Duration serviceDuration,
+                          std::vector<Load> capacity,
+                          Cost fixedCost,
                           std::string name)
     : x(x),
       y(y),
       serviceDuration(serviceDuration),
       twEarly(twEarly),
       twLate(twLate),
+      capacity(std::move(capacity)),
+      fixedCost(fixedCost),
       name(duplicate(name.data()))
 {
     if (serviceDuration < 0)
@@ -244,6 +249,13 @@ ProblemData::Depot::Depot(Coordinate x,
 
     if (twEarly < 0)
         throw std::invalid_argument("tw_early must be >= 0.");
+
+    if (std::any_of(
+            this->capacity.begin(), this->capacity.end(), isNegative<Load>))
+        throw std::invalid_argument("capacity amounts must be >= 0.");
+
+    if (fixedCost < 0)
+        throw std::invalid_argument("fixed_cost must be >= 0.");
 }
 
 ProblemData::Depot::Depot(Depot const &depot)
@@ -252,6 +264,8 @@ ProblemData::Depot::Depot(Depot const &depot)
       serviceDuration(depot.serviceDuration),
       twEarly(depot.twEarly),
       twLate(depot.twLate),
+      capacity(depot.capacity),
+      fixedCost(depot.fixedCost),
       name(duplicate(depot.name))
 {
 }
@@ -262,6 +276,8 @@ ProblemData::Depot::Depot(Depot &&depot)
       serviceDuration(depot.serviceDuration),
       twEarly(depot.twEarly),
       twLate(depot.twLate),
+      capacity(std::move(depot.capacity)),
+      fixedCost(depot.fixedCost),
       name(depot.name)  // we can steal
 {
     depot.name = nullptr;  // stolen
@@ -277,6 +293,8 @@ bool ProblemData::Depot::operator==(Depot const &other) const
         && twEarly == other.twEarly
         && twLate == other.twLate
         && serviceDuration == other.serviceDuration
+        && capacity == other.capacity
+        && fixedCost == other.fixedCost
         && std::strcmp(name, other.name) == 0;
     // clang-format on
 }
@@ -568,6 +586,11 @@ size_t ProblemData::numLoadDimensions() const { return numLoadDimensions_; }
 
 void ProblemData::validate() const
 {
+    auto const hasDepotCapacities = std::any_of(
+        depots_.begin(),
+        depots_.end(),
+        [](auto const &depot) { return !depot.capacity.empty(); });
+
     // Client checks.
     for (size_t idx = numDepots(); idx != numLocations(); ++idx)
     {
@@ -582,6 +605,15 @@ void ProblemData::validate() const
         if (client.pickup.size() != numLoadDimensions_)
         {
             auto const *msg = "Client has inconsistent pickup size.";
+            throw std::invalid_argument(msg);
+        }
+
+        if (hasDepotCapacities
+            && std::any_of(client.pickup.begin(),
+                           client.pickup.end(),
+                           [](auto const load) { return load > 0; }))
+        {
+            auto const *msg = "Depot capacities require delivery-only clients.";
             throw std::invalid_argument(msg);
         }
 
@@ -608,6 +640,16 @@ void ProblemData::validate() const
     // Depot checks.
     if (depots_.empty())
         throw std::invalid_argument("Expected at least one depot.");
+
+    for (auto const &depot : depots_)
+    {
+        if (!depot.capacity.empty()
+            && depot.capacity.size() != numLoadDimensions_)
+        {
+            auto const *msg = "Depot has inconsistent capacity size.";
+            throw std::invalid_argument(msg);
+        }
+    }
 
     // Group checks.
     for (size_t idx = 0; idx != numGroups(); ++idx)
@@ -659,6 +701,32 @@ void ProblemData::validate() const
         if (!hasTimeOverlap(depots_[vehicleType.endDepot], vehicleType))
             throw std::invalid_argument("Vehicle and its end depot have no "
                                         "overlapping time windows.");
+
+        if (hasDepotCapacities)
+        {
+            if (vehicleType.startDepot != vehicleType.endDepot)
+            {
+                auto const *msg
+                    = "Depot capacities require matching start and end depots.";
+                throw std::invalid_argument(msg);
+            }
+
+            if (!vehicleType.reloadDepots.empty())
+            {
+                auto const *msg
+                    = "Depot capacities do not support reload depots.";
+                throw std::invalid_argument(msg);
+            }
+
+            if (std::any_of(vehicleType.initialLoad.begin(),
+                            vehicleType.initialLoad.end(),
+                            [](auto const load) { return load > 0; }))
+            {
+                auto const *msg
+                    = "Depot capacities do not support initial loads.";
+                throw std::invalid_argument(msg);
+            }
+        }
 
         for (auto const depot : vehicleType.reloadDepots)
             if (depot >= numDepots())

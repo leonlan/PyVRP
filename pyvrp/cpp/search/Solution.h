@@ -7,6 +7,7 @@
 #include "Route.h"  // pyvrp::search::Route
 #include "SearchSpace.h"
 
+#include <cstdint>
 #include <vector>
 
 namespace pyvrp::search
@@ -30,6 +31,14 @@ namespace pyvrp::search
 class Solution
 {
     ProblemData const &data_;
+    std::vector<std::vector<Load>> depotCapacities_;
+    std::vector<Cost> depotFixedCosts_;
+    std::vector<std::vector<Load>> depotLoads_;
+    std::vector<size_t> depotCounts_;
+    std::vector<std::vector<Load>> routeLoads_;
+    std::vector<uint8_t> routeUsed_;
+
+    void updateDepotAggregates();
 
 public:
     std::vector<Route::Node> nodes;  // size numLocations()
@@ -42,6 +51,18 @@ public:
 
     // Converts from our representation to a proper solution.
     pyvrp::Solution unload() const;
+
+    // Depot aggregate context for the cost evaluator.
+    DepotContext depotContext() const;
+
+    // Updates depot aggregate state after the given route has been updated.
+    void updateDepotAggregates(Route const &route);
+
+    // Computes the depot capacity penalty for the current aggregate loads.
+    Cost depotLoadPenalty(CostEvaluator const &costEvaluator) const;
+
+    // Computes the fixed cost of the currently used depots.
+    Cost fixedDepotCost() const;
 
     // Inserts the given node into the solution - either in its neighbourhood,
     // or in an empty route, if improving or required. Returns true if the node

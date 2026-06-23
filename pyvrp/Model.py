@@ -284,6 +284,8 @@ class Model:
         tw_early: int = 0,
         tw_late: int = np.iinfo(np.int64).max,
         service_duration: int = 0,
+        capacity: int | list[int] = [],
+        fixed_cost: int = 0,
         *,
         name: str = "",
     ) -> Depot:
@@ -297,6 +299,8 @@ class Model:
             tw_early=tw_early,
             tw_late=tw_late,
             service_duration=service_duration,
+            capacity=[capacity] if isinstance(capacity, int) else capacity,
+            fixed_cost=fixed_cost,
             name=name,
         )
 

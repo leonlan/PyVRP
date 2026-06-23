@@ -258,6 +258,29 @@ def test_excess_load_penalised_cost():
     assert_equal(cost_eval.penalised_cost(sol), 10 * (1 + 2) + 10 * (0 + 1))
 
 
+def test_depot_capacity_excess_load_penalised_cost():
+    """
+    Tests that depot capacity excess load is properly penalised in the cost
+    computations.
+    """
+    data = ProblemData(
+        clients=[
+            Client(x=1, y=0, delivery=[6], pickup=[0]),
+            Client(x=2, y=0, delivery=[5], pickup=[0]),
+        ],
+        depots=[Depot(x=0, y=0, capacity=[10])],
+        vehicle_types=[VehicleType(2, capacity=[10])],
+        distance_matrices=[np.zeros((3, 3), dtype=int)],
+        duration_matrices=[np.zeros((3, 3), dtype=int)],
+    )
+
+    sol = Solution(data, [[1], [2]])
+    assert_equal(sol.excess_load(), [1])
+
+    cost_eval = CostEvaluator([10], 0, 0)
+    assert_equal(cost_eval.penalised_cost(sol), 10)
+
+
 @pytest.mark.parametrize(
     ("assignment", "expected"), [((0, 0), 0), ((0, 1), 10), ((1, 1), 20)]
 )
@@ -290,6 +313,49 @@ def test_cost_with_fixed_vehicle_cost(
     assert_(sol.is_feasible())
     assert_equal(cost_eval.cost(sol), sol.distance() + expected)
     assert_equal(cost_eval.penalised_cost(sol), sol.distance() + expected)
+
+
+def test_cost_with_fixed_depot_cost_for_used_depots_only():
+    """
+    Tests that depot fixed costs are only part of the full solution cost when
+    at least one used vehicle starts at that depot.
+    """
+    data = ProblemData(
+        clients=[
+            Client(x=0, y=0, required=False),
+            Client(x=1, y=0, required=False),
+        ],
+        depots=[
+            Depot(x=0, y=0, fixed_cost=10),
+            Depot(x=1, y=0, fixed_cost=20),
+        ],
+        vehicle_types=[
+            VehicleType(start_depot=0, end_depot=0),
+            VehicleType(start_depot=1, end_depot=1),
+        ],
+        distance_matrices=[np.zeros((4, 4), dtype=int)],
+        duration_matrices=[np.zeros((4, 4), dtype=int)],
+    )
+
+    cost_eval = CostEvaluator([], 0, 0)
+
+    empty = Solution(data, [])
+    assert_(empty.is_feasible())
+    assert_equal(empty.fixed_depot_cost(), 0)
+    assert_equal(cost_eval.cost(empty), 0)
+    assert_equal(cost_eval.penalised_cost(empty), 0)
+
+    one_depot = Solution(data, [Route(data, [2], 0)])
+    assert_(one_depot.is_feasible())
+    assert_equal(one_depot.fixed_depot_cost(), 10)
+    assert_equal(cost_eval.cost(one_depot), 10)
+    assert_equal(cost_eval.penalised_cost(one_depot), 10)
+
+    two_depots = Solution(data, [Route(data, [2], 0), Route(data, [3], 1)])
+    assert_(two_depots.is_feasible())
+    assert_equal(two_depots.fixed_depot_cost(), 30)
+    assert_equal(cost_eval.cost(two_depots), 30)
+    assert_equal(cost_eval.penalised_cost(two_depots), 30)
 
 
 def test_unit_distance_duration_cost(ok_small):

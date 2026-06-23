@@ -3,8 +3,12 @@
 [![PyPI version](https://img.shields.io/pypi/v/PyVRP?style=flat-square&label=PyPI)](https://pypi.org/project/pyvrp/)
 [![CI](https://img.shields.io/github/actions/workflow/status/PyVRP/PyVRP/.github%2Fworkflows%2FCI.yml?branch=main&style=flat-square&logo=github&label=CI)](https://github.com/PyVRP/PyVRP/actions/workflows/CI.yml)
 [![DOC](https://img.shields.io/github/actions/workflow/status/PyVRP/PyVRP/.github%2Fworkflows%2FDOC.yml?branch=main&style=flat-square&logo=github&label=DOC)](https://pyvrp.org/)
-[![codecov](https://img.shields.io/codecov/c/github/PyVRP/PyVRP?style=flat-square&logo=codecov&label=Codecov)](https://codecov.io/gh/PyVRP/PyVRP)
 [![DOI:10.1287/ijoc.2023.0055](https://img.shields.io/badge/DOI-ijoc.2023.0055-green?style=flat-square&color=blue)](https://doi.org/10.1287/ijoc.2023.0055)
+
+> [!NOTE]
+> This is a special fork of PyVRP v0.13.3 for the [SMIO-Hexaly Location Routing Challenge 2026][10].
+> See that repository's README for more details about the challenge and problem setting.
+> This fork extends PyVRP with depot capacities and fixed depot opening costs, so solutions are charged for opening a depot (i.e., there is at least one route that starts at this depot) and penalised when the total load assigned to a depot exceeds its capacity.
 
 PyVRP is an open-source, state-of-the-art vehicle routing problem (VRP) solver developed by [RoutingLab](https://routinglab.tech).
 It currently supports VRPs with:
@@ -100,3 +104,5 @@ A preprint of this paper is available on [arXiv][9].
 [8]: https://pyvrp.org/examples/using_pyvrp_components.html
 
 [9]: https://arxiv.org/abs/2403.13795
+
+[10]: https://github.com/AppliedRouting/Location-Routing-Challenge

@@ -24,7 +24,12 @@ void Solution::evaluate(ProblemData const &data)
     for (auto const &client : data.clients())
         allPrizes += client.prize;
 
-    excessLoad_ = std::vector<Load>(data.numLoadDimensions(), 0);
+    auto const numLoadDims = data.numLoadDimensions();
+    excessLoad_ = std::vector<Load>(numLoadDims, 0);
+    std::vector<std::vector<Load>> depotLoad(data.numDepots(),
+                                             std::vector<Load>(numLoadDims, 0));
+    std::vector<size_t> depotCounts(data.numDepots(), 0);
+
     for (auto const &route : routes_)
     {
         // Whole solution statistics.
@@ -40,8 +45,30 @@ void Solution::evaluate(ProblemData const &data)
         fixedVehicleCost_ += data.vehicleType(route.vehicleType()).fixedCost;
 
         auto const &excessLoad = route.excessLoad();
-        for (size_t dim = 0; dim != data.numLoadDimensions(); ++dim)
+        for (size_t dim = 0; dim != numLoadDims; ++dim)
             excessLoad_[dim] += excessLoad[dim];
+
+        // Depot capacities assume all delivery on a route is served from the
+        // route's start depot.
+        auto const &delivery = route.delivery();
+        auto const startDepot = route.startDepot();
+        ++depotCounts[startDepot];
+        for (size_t dim = 0; dim != numLoadDims; ++dim)
+            depotLoad[startDepot][dim] += delivery[dim];
+    }
+
+    for (size_t depot = 0; depot != data.numDepots(); ++depot)
+    {
+        ProblemData::Depot const &depotData = data.location(depot);
+        auto const &capacity = depotData.capacity;
+        fixedDepotCost_ += Cost(depotCounts[depot] > 0) * depotData.fixedCost;
+
+        if (capacity.empty())
+            continue;
+
+        for (size_t dim = 0; dim != numLoadDims; ++dim)
+            excessLoad_[dim]
+                += std::max<Load>(depotLoad[depot][dim] - capacity[dim], 0);
     }
 
     uncollectedPrizes_ = allPrizes - prizes_;
@@ -109,6 +136,8 @@ std::vector<Load> const &Solution::excessLoad() const { return excessLoad_; }
 Distance Solution::excessDistance() const { return excessDistance_; }
 
 Cost Solution::fixedVehicleCost() const { return fixedVehicleCost_; }
+
+Cost Solution::fixedDepotCost() const { return fixedDepotCost_; }
 
 Cost Solution::prizes() const { return prizes_; }
 
@@ -300,6 +329,7 @@ Solution::Solution(size_t numClients,
                    Distance excessDistance,
                    std::vector<Load> excessLoad,
                    Cost fixedVehicleCost,
+                   Cost fixedDepotCost,
                    Cost prizes,
                    Cost uncollectedPrizes,
                    Duration timeWarp,
@@ -316,6 +346,7 @@ Solution::Solution(size_t numClients,
       excessDistance_(excessDistance),
       excessLoad_(std::move(excessLoad)),
       fixedVehicleCost_(fixedVehicleCost),
+      fixedDepotCost_(fixedDepotCost),
       prizes_(prizes),
       uncollectedPrizes_(uncollectedPrizes),
       timeWarp_(timeWarp),

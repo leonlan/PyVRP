@@ -18,11 +18,14 @@ pyvrp::Solution LocalSearch::operator()(pyvrp::Solution const &solution,
                                         bool exhaustive)
 {
     loadSolution(solution);
+    auto const searchCostEvaluator
+        = costEvaluator.withDepotContext(solution_.depotContext());
 
     if (!exhaustive)
-        perturbationManager_.perturb(solution_, searchSpace_, costEvaluator);
+        perturbationManager_.perturb(
+            solution_, searchSpace_, searchCostEvaluator);
 
-    search(costEvaluator);
+    search(searchCostEvaluator);
     return solution_.unload();
 }
 
@@ -30,7 +33,9 @@ pyvrp::Solution LocalSearch::search(pyvrp::Solution const &solution,
                                     CostEvaluator const &costEvaluator)
 {
     loadSolution(solution);
-    search(costEvaluator);
+    auto const searchCostEvaluator
+        = costEvaluator.withDepotContext(solution_.depotContext());
+    search(searchCostEvaluator);
     return solution_.unload();
 }
 
@@ -122,7 +127,9 @@ bool LocalSearch::applyNodeOps(Route::Node *U,
 
             [[maybe_unused]] auto const costBefore
                 = costEvaluator.penalisedCost(*rU)
-                  + Cost(rU != rV) * costEvaluator.penalisedCost(*rV);
+                  + Cost(rU != rV) * costEvaluator.penalisedCost(*rV)
+                  + solution_.depotLoadPenalty(costEvaluator)
+                  + solution_.fixedDepotCost();
 
             searchSpace_.markPromising(U);
             searchSpace_.markPromising(V);
@@ -130,13 +137,15 @@ bool LocalSearch::applyNodeOps(Route::Node *U,
             nodeOp->apply(U, V);
             update(rU, rV);
 
-            [[maybe_unused]] auto const costAfter
-                = costEvaluator.penalisedCost(*rU)
-                  + Cost(rU != rV) * costEvaluator.penalisedCost(*rV);
-
             // When there is an improving move, the delta cost evaluation must
             // be exact. The resulting cost is then the sum of the cost before
             // the move, plus the delta cost.
+            [[maybe_unused]] auto const costAfter
+                = costEvaluator.penalisedCost(*rU)
+                  + Cost(rU != rV) * costEvaluator.penalisedCost(*rV)
+                  + solution_.depotLoadPenalty(costEvaluator)
+                  + solution_.fixedDepotCost();
+
             assert(costAfter == costBefore + deltaCost);
 
             return true;
@@ -361,11 +370,13 @@ void LocalSearch::update(Route *U, Route *V)
     searchCompleted_ = false;
 
     U->update();
+    solution_.updateDepotAggregates(*U);
     lastUpdated[U->idx()] = numUpdates_;
 
     if (U != V)
     {
         V->update();
+        solution_.updateDepotAggregates(*V);
         lastUpdated[V->idx()] = numUpdates_;
     }
 }

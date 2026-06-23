@@ -129,11 +129,24 @@ def test_add_depot_attributes():
     in.
     """
     model = Model()
-    depot = model.add_depot(x=1, y=0, tw_early=5, tw_late=7)
+    depot = model.add_depot(
+        x=1,
+        y=0,
+        tw_early=5,
+        tw_late=7,
+        service_duration=3,
+        capacity=[11, 13],
+        fixed_cost=17,
+        name="test",
+    )
     assert_equal(depot.x, 1)
     assert_equal(depot.y, 0)
     assert_equal(depot.tw_early, 5)
     assert_equal(depot.tw_late, 7)
+    assert_equal(depot.service_duration, 3)
+    assert_equal(depot.capacity, [11, 13])
+    assert_equal(depot.fixed_cost, 17)
+    assert_equal(depot.name, "test")
 
 
 def test_add_edge():
@@ -1013,6 +1026,20 @@ def test_integer_vehicle_capacity_and_load_arguments_are_promoted_to_lists():
     assert_(veh1 == veh2)
     assert_equal(veh2.capacity, [10])
     assert_equal(veh2.initial_load, [1])
+
+
+def test_integer_depot_capacity_argument_is_promoted_to_list():
+    """
+    Tests that passing an integer depot capacity functions the same way as
+    passing a list of a single integer.
+    """
+    m = Model()
+
+    depot1 = m.add_depot(0, 0, capacity=10)
+    assert_equal(depot1.capacity, [10])
+
+    depot2 = m.add_depot(0, 0, capacity=[10])
+    assert_equal(depot2.capacity, [10])
 
 
 def test_adding_vehicle_reload_depots():

@@ -6,10 +6,27 @@
 #include <cassert>
 #include <iterator>
 
+using pyvrp::Cost;
+using pyvrp::Load;
 using pyvrp::search::Solution;
 
-Solution::Solution(ProblemData const &data) : data_(data)
+Solution::Solution(ProblemData const &data)
+    : data_(data),
+      depotLoads_(data.numDepots(),
+                  std::vector<Load>(data.numLoadDimensions(), 0)),
+      depotCounts_(data.numDepots(), 0),
+      routeLoads_(data.numVehicles(),
+                  std::vector<Load>(data.numLoadDimensions(), 0)),
+      routeUsed_(data.numVehicles(), false)
 {
+    depotCapacities_.reserve(data.numDepots());
+    depotFixedCosts_.reserve(data.numDepots());
+    for (auto const &depot : data.depots())
+    {
+        depotCapacities_.push_back(depot.capacity);
+        depotFixedCosts_.push_back(depot.fixedCost);
+    }
+
     nodes.reserve(data.numLocations());
     for (size_t loc = 0; loc != data.numLocations(); ++loc)
         nodes.emplace_back(loc);
@@ -83,6 +100,8 @@ void Solution::load(pyvrp::Solution const &solution)
 
         firstOfType = firstOfNextType;
     }
+
+    updateDepotAggregates();
 }
 
 pyvrp::Solution Solution::unload() const
@@ -129,6 +148,83 @@ pyvrp::Solution Solution::unload() const
     }
 
     return {data_, std::move(solRoutes)};
+}
+
+pyvrp::DepotContext Solution::depotContext() const
+{
+    return {&depotCapacities_, &depotLoads_, &depotFixedCosts_, &depotCounts_};
+}
+
+void Solution::updateDepotAggregates()
+{
+    auto const numLoadDims = data_.numLoadDimensions();
+    for (auto &load : depotLoads_)
+        std::fill(load.begin(), load.end(), Load{0});
+
+    std::fill(depotCounts_.begin(), depotCounts_.end(), 0);
+
+    for (auto const &route : routes)
+    {
+        auto const &load = route.load();
+        routeLoads_[route.idx()] = load;
+
+        auto const isUsed = !route.empty();
+        routeUsed_[route.idx()] = isUsed;
+        if (isUsed)
+            ++depotCounts_[route.startDepot()];
+
+        auto &depotLoad = depotLoads_[route.startDepot()];
+        for (size_t dim = 0; dim != numLoadDims; ++dim)
+            depotLoad[dim] += load[dim];
+    }
+}
+
+void Solution::updateDepotAggregates(Route const &route)
+{
+    auto const routeIdx = route.idx();
+    auto const &newLoad = route.load();
+    auto &oldLoad = routeLoads_[routeIdx];
+    auto &depotLoad = depotLoads_[route.startDepot()];
+
+    auto const newUsed = !route.empty();
+    if (routeUsed_[routeIdx] && !newUsed)
+        --depotCounts_[route.startDepot()];
+    else if (!routeUsed_[routeIdx] && newUsed)
+        ++depotCounts_[route.startDepot()];
+
+    routeUsed_[routeIdx] = newUsed;
+
+    for (size_t dim = 0; dim != data_.numLoadDimensions(); ++dim)
+    {
+        depotLoad[dim] += newLoad[dim] - oldLoad[dim];
+        oldLoad[dim] = newLoad[dim];
+    }
+}
+
+Cost Solution::depotLoadPenalty(CostEvaluator const &costEvaluator) const
+{
+    Cost cost = 0;
+    for (size_t depot = 0; depot != data_.numDepots(); ++depot)
+    {
+        auto const &capacity = depotCapacities_[depot];
+        if (capacity.empty())
+            continue;
+
+        for (size_t dim = 0; dim != capacity.size(); ++dim)
+            cost += costEvaluator.loadPenalty(
+                depotLoads_[depot][dim], capacity[dim], dim);
+    }
+
+    return cost;
+}
+
+Cost Solution::fixedDepotCost() const
+{
+    Cost cost = 0;
+    for (size_t depot = 0; depot != data_.numDepots(); ++depot)
+        cost += Cost(depotCounts_[depot] > 0) * depotFixedCosts_[depot];
+
+    return cost;
 }
 
 bool Solution::insert(Route::Node *U,

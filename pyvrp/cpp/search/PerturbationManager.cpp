@@ -70,12 +70,14 @@ void PerturbationManager::perturb(Solution &solution,
             searchSpace.markPromising(node);
             route->remove(node->idx());
             route->update();
+            solution.updateDepotAggregates(*route);
         }
         // Insert if node is not in a route and we are currently inserting.
         else if (!route && action == PerturbType::INSERT)
         {
             solution.insert(node, searchSpace, costEvaluator, true);
             node->route()->update();
+            solution.updateDepotAggregates(*node->route());
             searchSpace.markPromising(node);
         }
         else  // no-op

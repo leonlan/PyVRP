@@ -490,6 +490,35 @@ def test_excess_load_calculation_with_multiple_load_dimensions(
     assert_equal(solution.excess_load(), expected_excess_load)
 
 
+def test_excess_load_calculation_with_depot_capacity():
+    """
+    Tests that delivery load served from a capacitated depot contributes to the
+    Solution's excess load.
+    """
+    data = ProblemData(
+        clients=[
+            Client(x=1, y=0, delivery=[6], pickup=[0]),
+            Client(x=2, y=0, delivery=[5], pickup=[0]),
+        ],
+        depots=[Depot(x=0, y=0, capacity=[10])],
+        vehicle_types=[VehicleType(2, capacity=[10])],
+        distance_matrices=[np.zeros((3, 3), dtype=int)],
+        duration_matrices=[np.zeros((3, 3), dtype=int)],
+    )
+    solution = Solution(data, [[1], [2]])
+
+    routes = solution.routes()
+    assert_(all(route.is_feasible() for route in routes))
+    assert_equal(routes[0].delivery(), [6])
+    assert_equal(routes[1].delivery(), [5])
+    assert_equal(routes[0].excess_load(), [0])
+    assert_equal(routes[1].excess_load(), [0])
+
+    assert_(solution.has_excess_load())
+    assert_(not solution.is_feasible())
+    assert_equal(solution.excess_load(), [1])
+
+
 @pytest.mark.parametrize(
     "dist_mat",
     [
@@ -814,6 +843,40 @@ def test_fixed_vehicle_cost(
 
     sol = Solution(data, routes)
     assert_equal(sol.fixed_vehicle_cost(), expected)
+
+
+def test_fixed_depot_cost_of_used_depots():
+    """
+    Tests that the solution tracks the total fixed cost of depots that have at
+    least one route starting at that depot.
+    """
+    data = ProblemData(
+        clients=[
+            Client(x=0, y=0, required=False),
+            Client(x=1, y=0, required=False),
+        ],
+        depots=[
+            Depot(x=0, y=0, fixed_cost=10),
+            Depot(x=1, y=0, fixed_cost=20),
+        ],
+        vehicle_types=[
+            VehicleType(start_depot=0, end_depot=0),
+            VehicleType(start_depot=1, end_depot=1),
+        ],
+        distance_matrices=[np.zeros((4, 4), dtype=int)],
+        duration_matrices=[np.zeros((4, 4), dtype=int)],
+    )
+
+    empty = Solution(data, [])
+    assert_equal(empty.fixed_vehicle_cost(), 0)
+    assert_equal(empty.fixed_depot_cost(), 0)
+
+    one_depot = Solution(data, [Route(data, [2], 0)])
+    assert_equal(one_depot.fixed_depot_cost(), 10)
+
+    two_depots = Solution(data, [Route(data, [2], 0), Route(data, [3], 1)])
+    assert_equal(two_depots.fixed_depot_cost(), 30)
+    assert_equal(pickle.loads(pickle.dumps(two_depots)).fixed_depot_cost(), 30)
 
 
 @pytest.mark.parametrize(

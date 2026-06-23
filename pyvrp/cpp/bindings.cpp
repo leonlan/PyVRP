@@ -151,12 +151,16 @@ PYBIND11_MODULE(_pyvrp, m)
                       pyvrp::Duration,
                       pyvrp::Duration,
                       pyvrp::Duration,
+                      std::vector<pyvrp::Load>,
+                      pyvrp::Cost,
                       char const *>(),
              py::arg("x"),
              py::arg("y"),
              py::arg("tw_early") = 0,
              py::arg("tw_late") = std::numeric_limits<pyvrp::Duration>::max(),
              py::arg("service_duration") = 0,
+             py::arg("capacity") = py::list(),
+             py::arg("fixed_cost") = 0,
              py::kw_only(),
              py::arg("name") = "")
         .def_readonly("x", &ProblemData::Depot::x)
@@ -164,6 +168,10 @@ PYBIND11_MODULE(_pyvrp, m)
         .def_readonly("tw_early", &ProblemData::Depot::twEarly)
         .def_readonly("tw_late", &ProblemData::Depot::twLate)
         .def_readonly("service_duration", &ProblemData::Depot::serviceDuration)
+        .def_readonly("capacity",
+                      &ProblemData::Depot::capacity,
+                      py::return_value_policy::reference_internal)
+        .def_readonly("fixed_cost", &ProblemData::Depot::fixedCost)
         .def_readonly("name",
                       &ProblemData::Depot::name,
                       py::return_value_policy::reference_internal)
@@ -175,16 +183,20 @@ PYBIND11_MODULE(_pyvrp, m)
                                       depot.twEarly,
                                       depot.twLate,
                                       depot.serviceDuration,
+                                      depot.capacity,
+                                      depot.fixedCost,
                                       depot.name);
             },
             [](py::tuple t) {  // __setstate__
                 ProblemData::Depot depot(
-                    t[0].cast<pyvrp::Coordinate>(),  // x
-                    t[1].cast<pyvrp::Coordinate>(),  // y
-                    t[2].cast<pyvrp::Duration>(),    // tw early
-                    t[3].cast<pyvrp::Duration>(),    // tw late
-                    t[4].cast<pyvrp::Duration>(),    // service duration
-                    t[5].cast<std::string>());       // name
+                    t[0].cast<pyvrp::Coordinate>(),         // x
+                    t[1].cast<pyvrp::Coordinate>(),         // y
+                    t[2].cast<pyvrp::Duration>(),           // tw early
+                    t[3].cast<pyvrp::Duration>(),           // tw late
+                    t[4].cast<pyvrp::Duration>(),           // service duration
+                    t[5].cast<std::vector<pyvrp::Load>>(),  // capacity
+                    t[6].cast<pyvrp::Cost>(),               // fixed cost
+                    t[7].cast<std::string>());              // name
 
                 return depot;
             }))
@@ -916,6 +928,9 @@ PYBIND11_MODULE(_pyvrp, m)
         .def("fixed_vehicle_cost",
              &Solution::fixedVehicleCost,
              DOC(pyvrp, Solution, fixedVehicleCost))
+        .def("fixed_depot_cost",
+             &Solution::fixedDepotCost,
+             DOC(pyvrp, Solution, fixedDepotCost))
         .def("time_warp", &Solution::timeWarp, DOC(pyvrp, Solution, timeWarp))
         .def("prizes", &Solution::prizes, DOC(pyvrp, Solution, prizes))
         .def("uncollected_prizes",
@@ -942,6 +957,7 @@ PYBIND11_MODULE(_pyvrp, m)
                                       sol.excessDistance(),
                                       sol.excessLoad(),
                                       sol.fixedVehicleCost(),
+                                      sol.fixedDepotCost(),
                                       sol.prizes(),
                                       sol.uncollectedPrizes(),
                                       sol.timeWarp(),
@@ -965,12 +981,13 @@ PYBIND11_MODULE(_pyvrp, m)
                     t[7].cast<pyvrp::Distance>(),           // excess distance
                     t[8].cast<std::vector<pyvrp::Load>>(),  // excess load
                     t[9].cast<pyvrp::Cost>(),               // fixed veh cost
-                    t[10].cast<pyvrp::Cost>(),              // prizes
-                    t[11].cast<pyvrp::Cost>(),              // uncollected
-                    t[12].cast<pyvrp::Duration>(),          // time warp
-                    t[13].cast<bool>(),                     // is group feasible
-                    t[14].cast<Routes>(),                   // routes
-                    t[15].cast<Neighbours>());              // neighbours
+                    t[10].cast<pyvrp::Cost>(),              // fixed depot cost
+                    t[11].cast<pyvrp::Cost>(),              // prizes
+                    t[12].cast<pyvrp::Cost>(),              // uncollected
+                    t[13].cast<pyvrp::Duration>(),          // time warp
+                    t[14].cast<bool>(),                     // is group feasible
+                    t[15].cast<Routes>(),                   // routes
+                    t[16].cast<Neighbours>());              // neighbours
 
                 return sol;
             }))

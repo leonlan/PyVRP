@@ -20,6 +20,7 @@ concept CostEvaluatable = requires(T arg) {
     { arg.distanceCost() } -> std::same_as<Cost>;
     { arg.durationCost() } -> std::same_as<Cost>;
     { arg.fixedVehicleCost() } -> std::same_as<Cost>;
+    { arg.fixedDepotCost() } -> std::same_as<Cost>;
     { arg.excessLoad() } -> std::convertible_to<std::vector<Load>>;
     { arg.excessDistance() } -> std::same_as<Distance>;
     { arg.timeWarp() } -> std::same_as<Duration>;
@@ -42,7 +43,21 @@ concept DeltaCostEvaluatable = requires(T arg, size_t dimension) {
     { arg.route() };
     { arg.distance() } -> std::convertible_to<std::pair<Cost, Distance>>;
     { arg.duration() } -> std::convertible_to<std::pair<Cost, Duration>>;
+    { arg.load(dimension) } -> std::same_as<Load>;
     { arg.excessLoad(dimension) } -> std::same_as<Load>;
+    { arg.empty() } -> std::same_as<bool>;
+};
+
+/**
+ * Bundles the depot aggregate state needed during search delta evaluation.
+ * The search layer owns this state; the cost evaluator only points at it.
+ */
+struct DepotContext
+{
+    std::vector<std::vector<Load>> const *capacities = nullptr;
+    std::vector<std::vector<Load>> const *loads = nullptr;
+    std::vector<Cost> const *fixedCosts = nullptr;
+    std::vector<size_t> const *counts = nullptr;
 };
 
 /**
@@ -78,6 +93,7 @@ class CostEvaluator
     std::vector<double> loadPenalties_;  // per load dimension
     double twPenalty_;
     double distPenalty_;
+    DepotContext depotCtx_;
 
     /**
      * Computes the cost penalty incurred from the given excess loads. This is
@@ -86,10 +102,46 @@ class CostEvaluator
     [[nodiscard]] inline Cost
     excessLoadPenalties(std::vector<Load> const &excessLoads) const;
 
+    /**
+     * Computes the depot capacity penalty delta from the route proposal.
+     * This only does something when a depot context is configured.
+     */
+    template <DeltaCostEvaluatable T>
+    [[nodiscard]] inline Cost depotLoadDeltaPenalty(T const &proposal) const;
+
+    /**
+     * Computes the depot capacity penalty delta from two route proposals.
+     * This only does something when a depot context is configured.
+     */
+    template <DeltaCostEvaluatable U, DeltaCostEvaluatable V>
+    [[nodiscard]] inline Cost depotLoadDeltaPenalty(U const &uProposal,
+                                                    V const &vProposal) const;
+
+    /**
+     * Computes the fixed depot cost delta from the route proposal.
+     * This only does something when a depot context is configured.
+     */
+    template <DeltaCostEvaluatable T>
+    [[nodiscard]] inline Cost fixedDepotDeltaCost(T const &proposal) const;
+
+    /**
+     * Computes the fixed depot cost delta from two route proposals.
+     * This only does something when a depot context is configured.
+     */
+    template <DeltaCostEvaluatable U, DeltaCostEvaluatable V>
+    [[nodiscard]] inline Cost fixedDepotDeltaCost(U const &uProposal,
+                                                  V const &vProposal) const;
+
 public:
     CostEvaluator(std::vector<double> loadPenalties,
                   double twPenalty,
                   double distPenalty);
+
+    /**
+     * Returns a copy of this cost evaluator that accounts for depot aggregates
+     * using the given context. The context must outlive the returned evaluator.
+     */
+    [[nodiscard]] CostEvaluator withDepotContext(DepotContext context) const;
 
     /**
      * Computes the total excess load penalty for the given load and vehicle
@@ -129,7 +181,9 @@ public:
      * route :math:`R` has an assigned vehicle type that equips the route with
      * fixed vehicle cost :math:`f_R`, and unit distance, duration and overtime
      * costs :math:`c^\text{distance}_R`, :math:`c^\text{duration}_R`,
-     * :math:`c^\text{overtime}_R`, respectively. Let
+     * :math:`c^\text{overtime}_R`, respectively. Each depot :math:`d` has
+     * fixed depot cost :math:`g_d` that is incurred if at least one route
+     * starts there. Let
      * :math:`V_R = \{i : (i, j) \in R \}` be the set of locations visited by
      * route :math:`R`, and :math:`d_R`, :math:`t_R`, and :math:`o_R` the total
      * route distance, duration, and overtime, respectively. The objective value
@@ -137,6 +191,9 @@ public:
      *
      * .. math::
      *
+     *    \sum_{d \in D : \exists R \in \mathcal{R}: R \text{ starts at } d}
+     *        g_d
+     *    +
      *    \sum_{R \in \mathcal{R}}
      *      \left[
      *          f_R + c^\text{distance}_R d_R
@@ -145,9 +202,10 @@ public:
      *      \right]
      *    + \sum_{i \in V} p_i - \sum_{R \in \mathcal{R}} \sum_{i \in V_R} p_i,
      *
-     * where the first part lists each route's fixed, distance, duration and
-     * overtime costs, respectively, and the second part the uncollected prizes
-     * of unvisited clients.
+     * where the first part is the active depot fixed cost, the second part
+     * lists each route's fixed, distance, duration and overtime costs,
+     * respectively, and the final part the uncollected prizes of unvisited
+     * clients.
      *
      * .. note::
      *
@@ -211,6 +269,157 @@ Cost CostEvaluator::excessLoadPenalties(
     return cost;
 }
 
+template <DeltaCostEvaluatable T>
+Cost CostEvaluator::depotLoadDeltaPenalty(T const &proposal) const
+{
+    if (!depotCtx_.loads)
+        return 0;
+
+    assert(depotCtx_.capacities);
+
+    auto const *route = proposal.route();
+    auto const depot = route->startDepot();
+    auto const &capacity = (*depotCtx_.capacities)[depot];
+    if (capacity.empty())
+        return 0;
+
+    auto const &currentLoads = (*depotCtx_.loads)[depot];
+    auto const &routeLoads = route->load();
+
+    Cost cost = 0;
+    for (size_t dim = 0; dim != capacity.size(); ++dim)
+    {
+        auto const newLoad
+            = currentLoads[dim] - routeLoads[dim] + proposal.load(dim);
+
+        cost -= loadPenalty(currentLoads[dim], capacity[dim], dim);
+        cost += loadPenalty(newLoad, capacity[dim], dim);
+    }
+
+    return cost;
+}
+
+template <DeltaCostEvaluatable U, DeltaCostEvaluatable V>
+Cost CostEvaluator::depotLoadDeltaPenalty(U const &uProposal,
+                                          V const &vProposal) const
+{
+    if (!depotCtx_.loads)
+        return 0;
+
+    assert(depotCtx_.capacities);
+
+    auto const *uRoute = uProposal.route();
+    auto const *vRoute = vProposal.route();
+
+    // Both proposals describe the same route, so the single-route delta already
+    // captures the full change to that route's depot.
+    if (uRoute == vRoute)
+        return depotLoadDeltaPenalty(uProposal);
+
+    auto const uDepot = uRoute->startDepot();
+    auto const vDepot = vRoute->startDepot();
+
+    // Prices the before/after penalty of a single depot, applying whichever of
+    // the two route proposals start at it.
+    auto const penaltyDelta = [&](size_t depot)
+    {
+        auto const &capacity = (*depotCtx_.capacities)[depot];
+        if (capacity.empty())
+            return Cost(0);
+
+        auto const &currentLoads = (*depotCtx_.loads)[depot];
+
+        Cost cost = 0;
+        for (size_t dim = 0; dim != capacity.size(); ++dim)
+        {
+            auto newLoad = currentLoads[dim];
+            if (uDepot == depot)
+                newLoad += uProposal.load(dim) - uRoute->load()[dim];
+
+            if (vDepot == depot)
+                newLoad += vProposal.load(dim) - vRoute->load()[dim];
+
+            cost -= loadPenalty(currentLoads[dim], capacity[dim], dim);
+            cost += loadPenalty(newLoad, capacity[dim], dim);
+        }
+
+        return cost;
+    };
+
+    return penaltyDelta(uDepot) + (vDepot != uDepot ? penaltyDelta(vDepot) : 0);
+}
+
+template <DeltaCostEvaluatable T>
+Cost CostEvaluator::fixedDepotDeltaCost(T const &proposal) const
+{
+    if (!depotCtx_.counts)
+        return 0;
+
+    assert(depotCtx_.fixedCosts);
+
+    auto const *route = proposal.route();
+    auto const depot = route->startDepot();
+    auto const oldCount = (*depotCtx_.counts)[depot];
+    auto newCount = oldCount;
+    if (!route->empty())
+        --newCount;
+
+    if (!proposal.empty())
+        ++newCount;
+
+    auto const fixedCost = (*depotCtx_.fixedCosts)[depot];
+    return Cost(oldCount == 0 && newCount > 0) * fixedCost
+           - Cost(oldCount > 0 && newCount == 0) * fixedCost;
+}
+
+template <DeltaCostEvaluatable U, DeltaCostEvaluatable V>
+Cost CostEvaluator::fixedDepotDeltaCost(U const &uProposal,
+                                        V const &vProposal) const
+{
+    if (!depotCtx_.counts)
+        return 0;
+
+    assert(depotCtx_.fixedCosts);
+
+    auto const *uRoute = uProposal.route();
+    auto const *vRoute = vProposal.route();
+
+    if (uRoute == vRoute)
+        return fixedDepotDeltaCost(uProposal);
+
+    auto const uDepot = uRoute->startDepot();
+    auto const vDepot = vRoute->startDepot();
+
+    auto const costDelta = [&](size_t depot)
+    {
+        auto const oldCount = (*depotCtx_.counts)[depot];
+        auto newCount = oldCount;
+        if (uDepot == depot)
+        {
+            if (!uRoute->empty())
+                --newCount;
+
+            if (!uProposal.empty())
+                ++newCount;
+        }
+
+        if (vDepot == depot)
+        {
+            if (!vRoute->empty())
+                --newCount;
+
+            if (!vProposal.empty())
+                ++newCount;
+        }
+
+        auto const fixedCost = (*depotCtx_.fixedCosts)[depot];
+        return Cost(oldCount == 0 && newCount > 0) * fixedCost
+               - Cost(oldCount > 0 && newCount == 0) * fixedCost;
+    };
+
+    return costDelta(uDepot) + (vDepot != uDepot ? costDelta(vDepot) : 0);
+}
+
 Cost CostEvaluator::loadPenalty(Load load,
                                 Load capacity,
                                 size_t dimension) const
@@ -248,9 +457,9 @@ Cost CostEvaluator::penalisedCost(T const &arg) const
 
     // Standard objective plus infeasibility-related penalty terms.
     auto const cost
-        = arg.distanceCost() + arg.durationCost() + arg.fixedVehicleCost()
-          + excessLoadPenalties(arg.excessLoad()) + twPenalty(arg.timeWarp())
-          + distPenalty(arg.excessDistance(), 0);
+        = arg.fixedDepotCost() + arg.distanceCost() + arg.durationCost()
+          + arg.fixedVehicleCost() + excessLoadPenalties(arg.excessLoad())
+          + twPenalty(arg.timeWarp()) + distPenalty(arg.excessDistance(), 0);
 
     if constexpr (PrizeCostEvaluatable<T>)
         return cost + arg.uncollectedPrizes();
@@ -286,6 +495,11 @@ bool CostEvaluator::deltaCost(Cost &out, T<Args...> const &proposal) const
         out -= route->durationCost();
         out -= twPenalty(route->timeWarp());
     }
+
+    if constexpr (!skipLoad)
+        out += depotLoadDeltaPenalty(proposal);
+
+    out += fixedDepotDeltaCost(proposal);
 
     if (route->hasDistanceCost())
     {
@@ -354,6 +568,11 @@ bool CostEvaluator::deltaCost(Cost &out,
         out -= vRoute->durationCost();
         out -= twPenalty(vRoute->timeWarp());
     }
+
+    if constexpr (!skipLoad)
+        out += depotLoadDeltaPenalty(uProposal, vProposal);
+
+    out += fixedDepotDeltaCost(uProposal, vProposal);
 
     if (uRoute->hasDistanceCost())
     {

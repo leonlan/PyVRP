@@ -161,6 +161,14 @@ def test_raises_for_invalid_depot_data(
         Depot(x, y, tw_early, tw_late, service_duration)
 
 
+def test_raises_for_negative_depot_fixed_cost():
+    """
+    Tests that depot fixed costs must be non-negative.
+    """
+    with assert_raises(ValueError):
+        Depot(0, 0, fixed_cost=-1)
+
+
 def test_depot_initialises_data_correctly():
     """
     Tests that the depot constructor correctly initialises its member data, and
@@ -172,6 +180,7 @@ def test_depot_initialises_data_correctly():
         tw_early=5,
         tw_late=7,
         service_duration=3,
+        fixed_cost=11,
         name="test",
     )
 
@@ -180,6 +189,7 @@ def test_depot_initialises_data_correctly():
     assert_equal(depot.tw_early, 5)
     assert_equal(depot.tw_late, 7)
     assert_equal(depot.service_duration, 3)
+    assert_equal(depot.fixed_cost, 11)
     assert_equal(depot.name, "test")
 
 
@@ -1006,6 +1016,9 @@ def test_depot_eq():
     depot4 = Depot(x=0, y=0, name="test")
     assert_(depot1 != depot4)
 
+    depot5 = Depot(x=0, y=0, fixed_cost=1)
+    assert_(depot1 != depot5)
+
 
 def test_vehicle_type_eq():
     """
@@ -1062,6 +1075,15 @@ def test_pickle_locations(cls):
     Tests that client and depot locations can be serialised and unserialised.
     """
     before_pickle = cls(x=0, y=1, name="test")
+    bytes = pickle.dumps(before_pickle)
+    assert_equal(pickle.loads(bytes), before_pickle)
+
+
+def test_pickle_depot_with_fixed_cost():
+    """
+    Tests that depot fixed costs survive serialisation.
+    """
+    before_pickle = Depot(x=0, y=1, fixed_cost=123, name="test")
     bytes = pickle.dumps(before_pickle)
     assert_equal(pickle.loads(bytes), before_pickle)
 
@@ -1181,6 +1203,72 @@ def test_problem_data_raises_when_capacity_dimensions_differ():
         )
 
 
+def test_problem_data_raises_when_depot_capacity_dimensions_differ():
+    """
+    Tests that the ``ProblemData`` constructor raises a ``ValueError`` when a
+    depot capacity is provided with different dimensions.
+    """
+    with assert_raises(ValueError):
+        ProblemData(
+            clients=[
+                Client(x=0, y=0, delivery=[1, 2], pickup=[1, 2]),
+                Client(x=1, y=1, delivery=[1, 2], pickup=[1, 2]),
+            ],
+            depots=[Depot(x=0, y=0, capacity=[10])],
+            vehicle_types=[VehicleType(2, capacity=[1, 2])],
+            distance_matrices=[np.zeros((3, 3), dtype=int)],
+            duration_matrices=[np.zeros((3, 3), dtype=int)],
+        )
+
+
+def test_problem_data_allows_empty_depot_capacity():
+    """
+    Tests that an empty depot capacity is understood as unconstrained.
+    """
+    data = ProblemData(
+        clients=[
+            Client(x=0, y=0, delivery=[1, 2], pickup=[0, 0]),
+            Client(x=1, y=1, delivery=[1, 2], pickup=[0, 0]),
+        ],
+        depots=[Depot(x=0, y=0)],
+        vehicle_types=[VehicleType(2, capacity=[1, 2])],
+        distance_matrices=[np.zeros((3, 3), dtype=int)],
+        duration_matrices=[np.zeros((3, 3), dtype=int)],
+    )
+
+    assert_equal(data.depots()[0].capacity, [])
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"clients": [Client(x=1, y=0, delivery=[1], pickup=[1])]},
+        {
+            "vehicle_types": [
+                VehicleType(capacity=[10], start_depot=0, end_depot=1)
+            ]
+        },
+        {"vehicle_types": [VehicleType(capacity=[10], initial_load=[1])]},
+        {"vehicle_types": [VehicleType(capacity=[10], reload_depots=[0])]},
+    ],
+)
+def test_problem_data_depot_capacity_assumptions(kwargs):
+    """
+    Tests that depot capacities are only accepted for the simplified case
+    handled by the solver: delivery-only routes without reloads or initial
+    loads that start and end at the same depot.
+    """
+    clients = kwargs.get(
+        "clients", [Client(x=1, y=0, delivery=[1], pickup=[0])]
+    )
+    vehicle_types = kwargs.get("vehicle_types", [VehicleType(capacity=[10])])
+    depots = [Depot(x=0, y=0, capacity=[10]), Depot(x=1, y=0)]
+    mat = np.zeros((len(clients) + len(depots),) * 2, dtype=int)
+
+    with assert_raises(ValueError):
+        ProblemData(clients, depots, vehicle_types, [mat], [mat])
+
+
 def test_problem_data_raises_when_pickup_delivery_capacity_dimensions_differ():
     """
     Tests that the ``ProblemData`` constructor raises a ``ValueError`` when
@@ -1208,10 +1296,10 @@ def test_problem_data_constructor_valid_load_dimensions():
     """
     data = ProblemData(
         clients=[
-            Client(x=0, y=0, delivery=[1, 2], pickup=[1, 2]),
-            Client(x=1, y=1, delivery=[1, 2], pickup=[1, 2]),
+            Client(x=0, y=0, delivery=[1, 2], pickup=[0, 0]),
+            Client(x=1, y=1, delivery=[1, 2], pickup=[0, 0]),
         ],
-        depots=[Depot(x=0, y=0)],
+        depots=[Depot(x=0, y=0, capacity=[10, 10])],
         vehicle_types=[
             VehicleType(2, capacity=[1, 2]),
             VehicleType(2, capacity=[1, 2]),
@@ -1220,6 +1308,7 @@ def test_problem_data_constructor_valid_load_dimensions():
         duration_matrices=[np.zeros((3, 3), dtype=int)],
     )
     assert_equal(data.num_load_dimensions, 2)
+    assert_equal(data.depots()[0].capacity, [10, 10])
 
 
 @pytest.mark.parametrize(
